@@ -133,6 +133,15 @@
 
                 </div>
 
+
+                <button
+                    type="button"
+                    class="btn btn-outline-danger btn-sm mt-3 remove-schedule">
+
+                    この日程を削除
+
+                </button>
+
             </div>
 
         </div>
@@ -177,9 +186,10 @@
 
 
         <button
+            id="submit-button"
             class="btn btn-primary w-100">
 
-            まとめて申請する
+            申請する
 
         </button>
 
@@ -198,42 +208,80 @@
 
 
 <script>
+
 const today = new Date();
 
 const yyyy = today.getFullYear();
-const mm = String(today.getMonth() + 1).padStart(2, "0");
-const dd = String(today.getDate()).padStart(2, "0");
+const mm = String(
+    today.getMonth() + 1
+).padStart(2, "0");
+
+const dd = String(
+    today.getDate()
+).padStart(2, "0");
 
 const todayString =
     yyyy + "-" + mm + "-" + dd;
 
 
-document.querySelectorAll(
-    ".schedule-date"
-).forEach(function(input) {
+function updateSubmitButtonText() {
 
-    input.min = todayString;
+    const count =
+        document.querySelectorAll(
+            ".schedule-row"
+        ).length;
 
-});
+    const button =
+        document.getElementById(
+            "submit-button"
+        );
+
+    if (count > 1) {
+
+        button.textContent =
+            "まとめて申請する";
+
+    } else {
+
+        button.textContent =
+            "申請する";
+    }
+}
+
+
 async function checkAvailability(row) {
 
     const date =
-        row.querySelector(".schedule-date").value;
+        row.querySelector(
+            ".schedule-date"
+        ).value;
 
     const startTime =
-        row.querySelector(".schedule-start").value;
+        row.querySelector(
+            ".schedule-start"
+        ).value;
 
     const endTime =
-        row.querySelector(".schedule-end").value;
+        row.querySelector(
+            ".schedule-end"
+        ).value;
 
     const people =
-        row.querySelector(".schedule-people").value;
+        row.querySelector(
+            ".schedule-people"
+        ).value;
 
     const box =
-        row.querySelector(".availability");
+        row.querySelector(
+            ".availability"
+        );
 
 
-    if (!date || !startTime || !endTime) {
+    if (
+        !date
+        || !startTime
+        || !endTime
+    ) {
 
         box.className =
             "availability alert alert-secondary mt-3 mb-0";
@@ -263,8 +311,8 @@ async function checkAvailability(row) {
 
         const response =
             await fetch(
-                "/api/availability?" +
-                params.toString()
+                "/api/availability?"
+                + params.toString()
             );
 
 
@@ -285,14 +333,14 @@ async function checkAvailability(row) {
 
 
         let message =
-            "現在の予約・申請：<strong>" +
-            data.used +
-            " / " +
-            data.capacity +
-            "人</strong><br>" +
-            "利用可能人数：<strong>" +
-            data.available +
-            "人</strong>";
+            "現在の予約・申請：<strong>"
+            + data.used
+            + " / "
+            + data.capacity
+            + "人</strong><br>"
+            + "利用可能人数：<strong>"
+            + data.available
+            + "人</strong>";
 
 
         if (people) {
@@ -300,13 +348,18 @@ async function checkAvailability(row) {
             const peopleValue =
                 parseInt(people);
 
-            if (peopleValue > data.available) {
+            if (
+                peopleValue
+                > data.available
+            ) {
 
                 box.className =
                     "availability alert alert-danger mt-3 mb-0";
 
                 message +=
-                    "<br><strong>この人数では申請できません。</strong>";
+                    "<br><strong>"
+                    + "この人数では申請できません。"
+                    + "</strong>";
 
             } else {
 
@@ -314,15 +367,15 @@ async function checkAvailability(row) {
                     "availability alert alert-success mt-3 mb-0";
 
                 message +=
-                    "<br><strong>この人数で申請可能です。</strong>";
-
+                    "<br><strong>"
+                    + "この人数で申請可能です。"
+                    + "</strong>";
             }
 
         } else {
 
             box.className =
                 "availability alert alert-info mt-3 mb-0";
-
         }
 
 
@@ -342,6 +395,15 @@ async function checkAvailability(row) {
 
 function attachEvents(row) {
 
+    const dateInput =
+        row.querySelector(
+            ".schedule-date"
+        );
+
+    dateInput.min =
+        todayString;
+
+
     row.querySelectorAll(
         ".schedule-date, .schedule-start, .schedule-end"
     ).forEach(function(input) {
@@ -349,7 +411,10 @@ function attachEvents(row) {
         input.addEventListener(
             "change",
             function() {
-                checkAvailability(row);
+
+                checkAvailability(
+                    row
+                );
             }
         );
 
@@ -361,10 +426,41 @@ function attachEvents(row) {
     ).addEventListener(
         "input",
         function() {
-            checkAvailability(row);
+
+            checkAvailability(
+                row
+            );
         }
     );
 
+
+    row.querySelector(
+        ".remove-schedule"
+    ).addEventListener(
+        "click",
+        function() {
+
+            const rows =
+                document.querySelectorAll(
+                    ".schedule-row"
+                );
+
+
+            if (rows.length <= 1) {
+
+                alert(
+                    "日程は最低1件必要です。"
+                );
+
+                return;
+            }
+
+
+            row.remove();
+
+            updateSubmitButtonText();
+        }
+    );
 }
 
 
@@ -378,13 +474,17 @@ document.querySelectorAll(
 
 
 document
-    .getElementById("add-schedule")
+    .getElementById(
+        "add-schedule"
+    )
     .addEventListener(
         "click",
         function() {
 
             const list =
-                document.getElementById("schedule-list");
+                document.getElementById(
+                    "schedule-list"
+                );
 
             const lastRow =
                 list.querySelector(
@@ -414,24 +514,30 @@ document
             newRow.querySelector(
                 ".schedule-date"
             ).value = "";
-            
+
+
             newRow.querySelector(
                 ".schedule-date"
-            ).min = todayString;
+            ).min =
+                todayString;
+
 
             newRow.querySelector(
                 ".schedule-start"
-            ).value = lastStart;
+            ).value =
+                lastStart;
 
 
             newRow.querySelector(
                 ".schedule-end"
-            ).value = lastEnd;
+            ).value =
+                lastEnd;
 
 
             newRow.querySelector(
                 ".schedule-people"
-            ).value = lastPeople;
+            ).value =
+                lastPeople;
 
 
             const box =
@@ -446,15 +552,24 @@ document
                 "日時を入力すると空き状況を表示します。";
 
 
-            list.appendChild(newRow);
+            list.appendChild(
+                newRow
+            );
 
-            attachEvents(newRow);
 
+            attachEvents(
+                newRow
+            );
+
+
+            updateSubmitButtonText();
         }
     );
 
-</script>
 
+updateSubmitButtonText();
+
+</script>
 
 </body>
 </html>
