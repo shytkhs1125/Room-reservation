@@ -73,6 +73,7 @@
             class="btn btn-outline-secondary">
 
             プロフィール
+
         </a>
 
         {% if current_user.is_admin %}
@@ -125,6 +126,30 @@ document.addEventListener(
             document.getElementById("calendar");
 
 
+        // =====================================================
+        // 利用者ごとの表示色
+        // =====================================================
+        function getUserColor(userId) {
+
+            const colors = [
+                "#0d6efd",
+                "#198754",
+                "#dc3545",
+                "#6f42c1",
+                "#fd7e14",
+                "#20c997",
+                "#d63384",
+                "#0dcaf0",
+                "#6c757d",
+                "#795548"
+            ];
+
+            return colors[
+                (userId - 1) % colors.length
+            ];
+        }
+
+
         const calendar =
             new FullCalendar.Calendar(
                 calendarEl,
@@ -145,15 +170,79 @@ document.addEventListener(
                         today: "今日"
                     },
 
-                    events: "/api/calendar-events",
 
+                    // =========================================
+                    // 予約データ取得
+                    // 利用者ごとに色を付ける
+                    // =========================================
+                    events: function(
+                        info,
+                        successCallback,
+                        failureCallback
+                    ) {
 
-                    dateClick: function(info) {
-                        const clickedDate = new Date(
-                            info.dateStr + "T00:00:00"
+                        fetch(
+                            "/api/calendar-events"
+                        )
+
+                        .then(
+                            response =>
+                                response.json()
+                        )
+
+                        .then(
+                            events => {
+
+                                const coloredEvents =
+                                    events.map(
+                                        event => {
+
+                                            const color =
+                                                getUserColor(
+                                                    event.user_id
+                                                );
+
+                                            return {
+                                                ...event,
+                                                backgroundColor:
+                                                    color,
+                                                borderColor:
+                                                    color
+                                            };
+                                        }
+                                    );
+
+                                successCallback(
+                                    coloredEvents
+                                );
+                            }
+                        )
+
+                        .catch(
+                            error => {
+
+                                failureCallback(
+                                    error
+                                );
+                            }
                         );
+                    },
 
-                        const today = new Date();
+
+                    // =========================================
+                    // 日付クリック
+                    // =========================================
+                    dateClick: function(info) {
+
+                        const clickedDate =
+                            new Date(
+                                info.dateStr +
+                                "T00:00:00"
+                            );
+
+                        const today =
+                            new Date();
+
                         today.setHours(
                             0,
                             0,
@@ -161,24 +250,37 @@ document.addEventListener(
                             0
                         );
 
-                        if (clickedDate < today) {
+                        if (
+                            clickedDate <
+                            today
+                        ) {
+
                             alert(
                                 "過去の日付は予約できません。"
                             );
+
                             return;
                         }
 
-                    const date = info.dateStr;
-                    window.location.href =
-                        "{{ url_for('new_reservation') }}" +
-                        "?date=" +
-                        encodeURIComponent(date);
+                        const date =
+                            info.dateStr;
+
+                        window.location.href =
+                            "{{ url_for('new_reservation') }}" +
+                            "?date=" +
+                            encodeURIComponent(
+                                date
+                            );
                     },
 
 
+                    // =========================================
+                    // 予約クリック
+                    // =========================================
                     eventClick: function(info) {
 
-                        const event = info.event;
+                        const event =
+                            info.event;
 
 
                         const start =
@@ -194,9 +296,12 @@ document.addEventListener(
                             );
 
 
-                        let end = "－";
+                        let end =
+                            "－";
 
-                        if (event.end) {
+                        if (
+                            event.end
+                        ) {
 
                             end =
                                 event.end.toLocaleString(
@@ -242,7 +347,9 @@ document.addEventListener(
                             );
 
 
-                        alert(message);
+                        alert(
+                            message
+                        );
                     },
 
 

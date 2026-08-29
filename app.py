@@ -1411,16 +1411,12 @@ def calendar_events():
             ),
 
             "start": reservation.start_datetime.isoformat(),
-
             "end": reservation.end_datetime.isoformat(),
-
             "status": reservation.status,
-
             "people": reservation.people,
-
             "purpose": reservation.purpose or "",
-
             "user_name": reservation.user.name,
+            "user_id": reservation.user_id,
         })
 
     return jsonify(events)
