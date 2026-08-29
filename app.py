@@ -1140,6 +1140,11 @@ def new_reservation():
 
         db.session.commit()
 
+        admin_url = (
+            os.environ["APP_BASE_URL"].rstrip("/")
+            + "/admin"
+        )
+
         try:
             admin_users = User.query.filter_by(
                 role="admin",
@@ -1155,7 +1160,8 @@ def new_reservation():
                         f"{len(schedules)}件の利用申請がありました。\n\n"
                         f"利用目的：{purpose or '－'}\n"
                         f"備考：{note or '－'}\n\n"
-                        "管理画面から確認してください。"
+                        "以下のURLから管理画面を開けます。\n"
+                        f"{admin_url}"
                     )
                 )
 
