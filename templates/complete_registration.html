@@ -28,11 +28,6 @@
                         利用登録
                     </h3>
 
-                    <p class="text-muted">
-                        登録に使用するメールアドレスを入力してください。
-                        登録用URLをメールでお送りします。
-                    </p>
-
                     {% with messages = get_flashed_messages() %}
                         {% if messages %}
                             {% for message in messages %}
@@ -42,6 +37,21 @@
                             {% endfor %}
                         {% endif %}
                     {% endwith %}
+
+                    <div class="mb-3">
+
+                        <label class="form-label">
+                            メールアドレス
+                        </label>
+
+                        <input
+                            type="email"
+                            class="form-control"
+                            value="{{ email }}"
+                            readonly
+                        >
+
+                    </div>
 
                     <form method="POST">
 
@@ -54,15 +64,44 @@
                         <div class="mb-3">
 
                             <label class="form-label">
-                                メールアドレス
+                                氏名
                             </label>
 
                             <input
-                                type="email"
-                                name="email"
+                                type="text"
+                                name="name"
                                 class="form-control"
                                 required
-                                autocomplete="email"
+                            >
+
+                        </div>
+
+                        <div class="mb-3">
+
+                            <label class="form-label">
+                                パスワード
+                            </label>
+
+                            <input
+                                type="password"
+                                name="password"
+                                class="form-control"
+                                required
+                            >
+
+                        </div>
+
+                        <div class="mb-3">
+
+                            <label class="form-label">
+                                パスワード（確認）
+                            </label>
+
+                            <input
+                                type="password"
+                                name="password_confirm"
+                                class="form-control"
+                                required
                             >
 
                         </div>
@@ -71,18 +110,10 @@
                             type="submit"
                             class="btn btn-primary w-100"
                         >
-                            登録用メールを送信
+                            登録する
                         </button>
 
                     </form>
-
-                    <div class="mt-3 text-center">
-
-                        <a href="{{ url_for('login') }}">
-                            ログイン画面に戻る
-                        </a>
-
-                    </div>
 
                 </div>
 

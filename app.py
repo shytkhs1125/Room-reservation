@@ -2,6 +2,9 @@ import os
 import uuid
 from datetime import datetime, date
 from zoneinfo import ZoneInfo
+import smtplib
+from email.message import EmailMessage
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 
 from dotenv import load_dotenv
 
@@ -91,6 +94,74 @@ def load_user(user_id):
 
 JST = ZoneInfo("Asia/Tokyo")
 
+# メール送信関連
+# =========================================================
+# 新規登録用メール認証トークン
+# =========================================================
+
+REGISTRATION_TOKEN_SALT = "email-registration"
+REGISTRATION_TOKEN_MAX_AGE = 60 * 60 * 24   # 24時間
+
+
+def create_registration_token(email):
+
+    serializer = URLSafeTimedSerializer(
+        app.config["SECRET_KEY"]
+    )
+
+    return serializer.dumps(
+        email,
+        salt=REGISTRATION_TOKEN_SALT
+    )
+
+
+def verify_registration_token(token):
+
+    serializer = URLSafeTimedSerializer(
+        app.config["SECRET_KEY"]
+    )
+
+    try:
+
+        email = serializer.loads(
+            token,
+            salt=REGISTRATION_TOKEN_SALT,
+            max_age=REGISTRATION_TOKEN_MAX_AGE
+        )
+
+        return email
+
+    except SignatureExpired:
+
+        return None
+
+    except BadSignature:
+
+        return None
+    
+def send_email(to_address, subject, body):
+
+    msg = EmailMessage()
+
+    msg["Subject"] = subject
+    msg["From"] = os.environ["MAIL_FROM"]
+    msg["To"] = to_address
+
+    msg.set_content(body)
+
+    with smtplib.SMTP(
+        os.environ["MAIL_SERVER"],
+        int(os.environ["MAIL_PORT"])
+    ) as smtp:
+
+        smtp.starttls()
+
+        smtp.login(
+            os.environ["MAIL_USERNAME"],
+            os.environ["MAIL_PASSWORD"]
+        )
+
+        smtp.send_message(msg)
 
 # =========================================================
 # 空き人数計算
@@ -209,6 +280,10 @@ def index():
 # 新規利用者登録
 # =========================================================
 
+# =========================================================
+# 新規利用登録（メール確認）
+# =========================================================
+
 @app.route(
     "/register",
     methods=["GET", "POST"]
@@ -217,35 +292,25 @@ def register():
 
     if request.method == "POST":
 
-        name = (
-            request.form["name"]
-            .strip()
-        )
-
         email = (
             request.form["email"]
             .strip()
             .lower()
         )
 
-        password = request.form["password"]
-
-
-        if not name or not email or not password:
+        if not email:
 
             flash(
-                "すべて入力してください。"
+                "メールアドレスを入力してください。"
             )
 
             return redirect(
                 url_for("register")
             )
 
-
         existing = User.query.filter_by(
             email=email
         ).first()
-
 
         if existing:
 
@@ -258,6 +323,134 @@ def register():
                 url_for("register")
             )
 
+        token = create_registration_token(
+            email
+        )
+
+        registration_url = url_for(
+            "complete_registration",
+            token=token,
+            _external=True
+        )
+
+        try:
+
+            send_email(
+                email,
+                "【実習室予約】利用登録のご案内",
+                (
+                    "実習室予約システムの利用登録を受け付けました。\n\n"
+                    "以下のURLを開いて、登録を完了してください。\n\n"
+                    f"{registration_url}\n\n"
+                    "このURLの有効期限は24時間です。\n"
+                    "心当たりがない場合は、このメールを無視してください。"
+                )
+            )
+
+        except Exception as e:
+
+            print(
+                "Mail send error:",
+                e
+            )
+
+            flash(
+                "確認メールを送信できませんでした。"
+                "時間をおいて再度お試しください。"
+            )
+
+            return redirect(
+                url_for("register")
+            )
+
+        flash(
+            "確認メールを送信しました。"
+            "メールに記載されたURLから"
+            "登録を続けてください。"
+        )
+
+        return redirect(
+            url_for("login")
+        )
+
+    return render_template(
+        "register.html"
+    )
+
+# =========================================================
+# 新規利用登録（本登録）
+# =========================================================
+
+@app.route(
+    "/register/complete/<token>",
+    methods=["GET", "POST"]
+)
+def complete_registration(token):
+
+    email = verify_registration_token(
+        token
+    )
+
+    if email is None:
+
+        flash(
+            "登録用URLが無効、または有効期限が切れています。"
+        )
+
+        return redirect(
+            url_for("register")
+        )
+
+    existing = User.query.filter_by(
+        email=email
+    ).first()
+
+    if existing:
+
+        flash(
+            "このメールアドレスは"
+            "既に登録されています。"
+        )
+
+        return redirect(
+            url_for("login")
+        )
+
+    if request.method == "POST":
+
+        name = (
+            request.form["name"]
+            .strip()
+        )
+
+        password = request.form["password"]
+        password_confirm = request.form["password_confirm"]
+
+        if not name or not password or not password_confirm:
+
+            flash(
+                "すべて入力してください。"
+            )
+
+            return redirect(
+                url_for(
+                    "complete_registration",
+                    token=token
+                )
+            )
+
+        if password != password_confirm:
+
+            flash(
+                "確認用パスワードが一致しません。"
+            )
+
+            return redirect(
+                url_for(
+                    "complete_registration",
+                    token=token
+                )
+            )
 
         user = User(
             name=name,
@@ -266,11 +459,9 @@ def register():
             status="pending"
         )
 
-
         user.set_password(
             password
         )
-
 
         db.session.add(
             user
@@ -278,22 +469,19 @@ def register():
 
         db.session.commit()
 
-
         flash(
             "利用登録を受け付けました。"
             "管理者の承認後にログインできます。"
         )
 
-
         return redirect(
             url_for("login")
         )
 
-
     return render_template(
-        "register.html"
+        "complete_registration.html",
+        email=email
     )
-
 
 # =========================================================
 # ログイン
@@ -441,7 +629,8 @@ def admin_dashboard():
     return render_template(
         "admin.html",
         pending_users=pending_users,
-        reservation_batches=reservation_batches
+        reservation_batches=reservation_batches,
+        JST=JST
     )
 
 
@@ -951,6 +1140,31 @@ def new_reservation():
 
         db.session.commit()
 
+        try:
+            admin_users = User.query.filter_by(
+                role="admin",
+                status="active"
+            ).all()
+
+            for admin in admin_users:
+                send_email(
+                    admin.email,
+                    "【実習室予約】新しい利用申請があります",
+                    (
+                        f"{current_user.name} さんから"
+                        f"{len(schedules)}件の利用申請がありました。\n\n"
+                        f"利用目的：{purpose or '－'}\n"
+                        f"備考：{note or '－'}\n\n"
+                        "管理画面から確認してください。"
+                    )
+                )
+
+        except Exception as e:
+            print(
+                "Mail send error:",
+                e
+            )
+
 
     except Exception as e:
 
@@ -1025,6 +1239,27 @@ def approve_reservation(reservation_id):
 
     db.session.commit()
 
+    try:
+        send_email(
+            reservation.user.email,
+            "【実習室予約】利用申請が承認されました",
+            (
+                f"{reservation.user.name} さん\n\n"
+                "以下の利用申請が承認されました。\n\n"
+                f"利用日：{reservation.start_datetime.astimezone(JST).strftime('%Y/%m/%d')}\n"
+                f"時間：{reservation.start_datetime.astimezone(JST).strftime('%H:%M')}"
+                f" ～ {reservation.end_datetime.astimezone(JST).strftime('%H:%M')}\n"
+                f"利用人数：{reservation.people}人\n"
+                f"利用目的：{reservation.purpose or '－'}\n"
+            )
+        )
+
+    except Exception as e:
+        print(
+            "Mail send error:",
+            e
+        )
+
     flash("予約申請を承認しました。")
 
     return redirect(
@@ -1085,7 +1320,8 @@ def my_reservations():
 
     return render_template(
         "my_reservations.html",
-        reservations=reservations
+        reservations=reservations,
+        JST=JST
     )
 
 @app.route(
@@ -1207,6 +1443,41 @@ def approve_reservation_batch(batch_id):
         reservation.status = "approved"
 
     db.session.commit()
+
+    try:
+        user = reservations[0].user
+
+        schedule_lines = []
+
+        for reservation in reservations:
+            schedule_lines.append(
+            (
+                f"{reservation.start_datetime.astimezone(JST).strftime('%Y/%m/%d')} "
+                f"{reservation.start_datetime.astimezone(JST).strftime('%H:%M')}"
+                f" ～ "
+                f"{reservation.end_datetime.astimezone(JST).strftime('%H:%M')}"
+                f"　{reservation.people}人"
+            )
+        )
+        schedule_text = "\n".join(schedule_lines)
+
+        send_email(
+            user.email,
+            "【実習室予約】利用申請が承認されました",
+            (
+                f"{user.name} さん\n\n"
+                "以下の利用申請が承認されました。\n\n"
+                f"{schedule_text}\n\n"
+                f"利用目的：{reservations[0].purpose or '－'}\n"
+                f"備考：{reservations[0].note or '－'}\n"
+            )
+        )
+
+    except Exception as e:
+        print(
+            "Mail send error:",
+            e
+        )
 
     flash(
         f"{len(reservations)}件の予約申請を"
@@ -1378,7 +1649,8 @@ def admin_reservations():
 
     return render_template(
         "admin_reservations.html",
-        reservations=reservations
+        reservations=reservations,
+        JST=JST
     )
 
 # =========================================================
