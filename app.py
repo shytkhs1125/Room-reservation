@@ -1204,10 +1204,15 @@ def new_reservation():
     # 正常終了
     # -----------------------------------------------------
 
-    flash(
-        f"{len(schedules)}件の利用申請を"
-        f"まとめて登録しました。"
-    )
+    if len(schedules) == 1:
+        flash(
+            "1件の利用申請を登録しました。"
+        )
+    else:
+        flash(
+            f"{len(schedules)}件の利用申請を"
+            "まとめて登録しました。"
+        )
 
 
     return redirect(
@@ -1483,10 +1488,15 @@ def approve_reservation_batch(batch_id):
             e
         )
 
-    flash(
-        f"{len(reservations)}件の予約申請を"
-        "まとめて承認しました。"
-    )
+    if len(reservations) == 1:
+        flash(
+            "1件の利用申請を承認しました。"
+        )
+    else:
+        flash(
+            f"{len(reservations)}件の利用申請を"
+            "まとめて承認しました。"
+        )
 
     return redirect(
         url_for("admin_dashboard")
@@ -1520,10 +1530,15 @@ def reject_reservation_batch(batch_id):
 
     db.session.commit()
 
-    flash(
-        f"{len(reservations)}件の予約申請を"
-        "まとめて却下しました。"
-    )
+    if len(reservations) == 1:
+        flash(
+            "1件の利用申請を却下しました。"
+        )
+    else:
+        flash(
+            f"{len(reservations)}件の利用申請を"
+            "まとめて却下しました。"
+        )
 
     return redirect(
         url_for("admin_dashboard")
