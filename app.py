@@ -606,22 +606,22 @@ def new_reservation():
         1
     )
 
+    selected_date = request.args.get(
+        "date",
+        ""
+    )
 
     # -----------------------------------------------------
     # GETの場合は申請画面を表示
     # -----------------------------------------------------
 
     if request.method != "POST":
-        selected_date = request.args.get(
-            "date",
-            ""
-        )
 
-    return render_template(
-        "reservation.html",
-        room=room,
-        selected_date=selected_date
-    )
+        return render_template(
+            "reservation.html",
+            room=room,
+            selected_date=selected_date
+        )
 
 
     # -----------------------------------------------------
