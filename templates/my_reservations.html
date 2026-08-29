@@ -47,14 +47,14 @@
         <div class="card-body">
 
             <strong>
-                {{ reservation.start_datetime.strftime("%Y/%m/%d") }}
+                {{ reservation.start_datetime.astimezone(JST).strftime("%Y/%m/%d") }}
             </strong>
 
             <br>
 
-            {{ reservation.start_datetime.strftime("%H:%M") }}
+            {{ reservation.start_datetime.astimezone(JST).strftime("%H:%M") }}
             ～
-            {{ reservation.end_datetime.strftime("%H:%M") }}
+            {{ reservation.end_datetime.astimezone(JST).strftime("%H:%M") }}
 
             <br>
 
