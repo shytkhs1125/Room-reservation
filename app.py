@@ -42,7 +42,7 @@ load_dotenv()
 app = Flask(__name__)
 
 app.config["SECRET_KEY"] = os.environ["SECRET_KEY"]
-
+app.config["SESSION_COOKIE_NAME"] = "__session"
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ["DATABASE_URL"]
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
