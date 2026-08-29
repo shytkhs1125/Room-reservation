@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="ja">
+
+<head>
+    <meta charset="utf-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1">
+
+    <title>利用申請</title>
+
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+        rel="stylesheet">
+</head>
+
+<body class="bg-light">
+
+<div class="container py-4">
+
+    {% with messages = get_flashed_messages() %}
+
+        {% if messages %}
+
+            {% for message in messages %}
+
+                <div class="alert alert-warning">
+                    {{ message }}
+                </div>
+
+            {% endfor %}
+
+        {% endif %}
+
+    {% endwith %}
+
+
+    <h3 class="mb-3">
+        利用申請
+    </h3>
+
+    <p class="mb-1">
+        {{ room.name }}
+    </p>
+
+    <p class="text-muted">
+        定員：{{ room.capacity }}名
+    </p>
+
+
+    <form method="post">
+
+        <input
+            type="hidden"
+            name="csrf_token"
+            value="{{ csrf_token() }}">
+
+
+        <div id="schedule-list">
+
+            <div class="schedule-row border rounded p-3 mb-3">
+
+                <div class="mb-3">
+
+                    <label class="form-label">
+                        利用日
+                    </label>
+
+                    <input
+                        type="date"
+                        name="date[]"
+                        class="form-control schedule-date"
+                        value="{{ selected_date or '' }}"
+                        required>
+
+                </div>
+
+
+                <div class="row">
+
+                    <div class="col-6">
+
+                        <label class="form-label">
+                            開始時刻
+                        </label>
+
+                        <input
+                            type="time"
+                            name="start_time[]"
+                            class="form-control schedule-start"
+                            required>
+
+                    </div>
+
+
+                    <div class="col-6">
+
+                        <label class="form-label">
+                            終了時刻
+                        </label>
+
+                        <input
+                            type="time"
+                            name="end_time[]"
+                            class="form-control schedule-end"
+                            required>
+
+                    </div>
+
+                </div>
+
+
+                <div class="mt-3">
+
+                    <label class="form-label">
+                        利用人数
+                    </label>
+
+                    <input
+                        type="number"
+                        name="people[]"
+                        class="form-control schedule-people"
+                        min="1"
+                        max="20"
+                        required>
+
+                </div>
+
+
+                <div class="availability alert alert-secondary mt-3 mb-0">
+
+                    日時を入力すると空き状況を表示します。
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <button
+            type="button"
+            id="add-schedule"
+            class="btn btn-outline-primary w-100 mb-4">
+
+            ＋ 日程を追加
+
+        </button>
+
+
+        <div class="mb-3">
+
+            <label class="form-label">
+                利用目的
+            </label>
+
+            <input
+                type="text"
+                name="purpose"
+                class="form-control">
+
+        </div>
+
+
+        <div class="mb-3">
+
+            <label class="form-label">
+                備考
+            </label>
+
+            <textarea
+                name="note"
+                class="form-control"
+                rows="3"></textarea>
+
+        </div>
+
+
+        <button
+            class="btn btn-primary w-100">
+
+            まとめて申請する
+
+        </button>
+
+    </form>
+
+
+    <a
+        href="{{ url_for('index') }}"
+        class="btn btn-link mt-3">
+
+        トップへ戻る
+
+    </a>
+
+</div>
+
+
+<script>
+const today = new Date();
+
+const yyyy = today.getFullYear();
+const mm = String(today.getMonth() + 1).padStart(2, "0");
+const dd = String(today.getDate()).padStart(2, "0");
+
+const todayString =
+    yyyy + "-" + mm + "-" + dd;
+
+
+document.querySelectorAll(
+    ".schedule-date"
+).forEach(function(input) {
+
+    input.min = todayString;
+
+});
+async function checkAvailability(row) {
+
+    const date =
+        row.querySelector(".schedule-date").value;
+
+    const startTime =
+        row.querySelector(".schedule-start").value;
+
+    const endTime =
+        row.querySelector(".schedule-end").value;
+
+    const people =
+        row.querySelector(".schedule-people").value;
+
+    const box =
+        row.querySelector(".availability");
+
+
+    if (!date || !startTime || !endTime) {
+
+        box.className =
+            "availability alert alert-secondary mt-3 mb-0";
+
+        box.textContent =
+            "日時を入力すると空き状況を表示します。";
+
+        return;
+    }
+
+
+    const start =
+        date + "T" + startTime;
+
+    const end =
+        date + "T" + endTime;
+
+
+    try {
+
+        const params =
+            new URLSearchParams({
+                start: start,
+                end: end
+            });
+
+
+        const response =
+            await fetch(
+                "/api/availability?" +
+                params.toString()
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (data.error) {
+
+            box.className =
+                "availability alert alert-danger mt-3 mb-0";
+
+            box.textContent =
+                data.error;
+
+            return;
+        }
+
+
+        let message =
+            "現在の予約・申請：<strong>" +
+            data.used +
+            " / " +
+            data.capacity +
+            "人</strong><br>" +
+            "利用可能人数：<strong>" +
+            data.available +
+            "人</strong>";
+
+
+        if (people) {
+
+            const peopleValue =
+                parseInt(people);
+
+            if (peopleValue > data.available) {
+
+                box.className =
+                    "availability alert alert-danger mt-3 mb-0";
+
+                message +=
+                    "<br><strong>この人数では申請できません。</strong>";
+
+            } else {
+
+                box.className =
+                    "availability alert alert-success mt-3 mb-0";
+
+                message +=
+                    "<br><strong>この人数で申請可能です。</strong>";
+
+            }
+
+        } else {
+
+            box.className =
+                "availability alert alert-info mt-3 mb-0";
+
+        }
+
+
+        box.innerHTML = message;
+
+
+    } catch (error) {
+
+        box.className =
+            "availability alert alert-danger mt-3 mb-0";
+
+        box.textContent =
+            "空き状況を取得できませんでした。";
+    }
+}
+
+
+function attachEvents(row) {
+
+    row.querySelectorAll(
+        ".schedule-date, .schedule-start, .schedule-end"
+    ).forEach(function(input) {
+
+        input.addEventListener(
+            "change",
+            function() {
+                checkAvailability(row);
+            }
+        );
+
+    });
+
+
+    row.querySelector(
+        ".schedule-people"
+    ).addEventListener(
+        "input",
+        function() {
+            checkAvailability(row);
+        }
+    );
+
+}
+
+
+document.querySelectorAll(
+    ".schedule-row"
+).forEach(function(row) {
+
+    attachEvents(row);
+
+});
+
+
+document
+    .getElementById("add-schedule")
+    .addEventListener(
+        "click",
+        function() {
+
+            const list =
+                document.getElementById("schedule-list");
+
+            const lastRow =
+                list.querySelector(
+                    ".schedule-row:last-child"
+                );
+
+            const newRow =
+                lastRow.cloneNode(true);
+
+
+            const lastStart =
+                lastRow.querySelector(
+                    ".schedule-start"
+                ).value;
+
+            const lastEnd =
+                lastRow.querySelector(
+                    ".schedule-end"
+                ).value;
+
+            const lastPeople =
+                lastRow.querySelector(
+                    ".schedule-people"
+                ).value;
+
+
+            newRow.querySelector(
+                ".schedule-date"
+            ).value = "";
+            
+            newRow.querySelector(
+                ".schedule-date"
+            ).min = todayString;
+
+            newRow.querySelector(
+                ".schedule-start"
+            ).value = lastStart;
+
+
+            newRow.querySelector(
+                ".schedule-end"
+            ).value = lastEnd;
+
+
+            newRow.querySelector(
+                ".schedule-people"
+            ).value = lastPeople;
+
+
+            const box =
+                newRow.querySelector(
+                    ".availability"
+                );
+
+            box.className =
+                "availability alert alert-secondary mt-3 mb-0";
+
+            box.textContent =
+                "日時を入力すると空き状況を表示します。";
+
+
+            list.appendChild(newRow);
+
+            attachEvents(newRow);
+
+        }
+    );
+
+</script>
+
+
+</body>
+</html>

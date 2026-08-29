@@ -1,0 +1,5 @@
+.env
+pswd
+venve/
+__pycache__/
+*.pyc
