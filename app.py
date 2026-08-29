@@ -327,10 +327,12 @@ def register():
             email
         )
 
-        registration_url = url_for(
-            "complete_registration",
-            token=token,
-            _external=True
+        registration_url = (
+            os.environ["APP_BASE_URL"].rstrip("/")
+            + url_for(
+                "complete_registration",
+                token=token
+            )
         )
 
         try:
