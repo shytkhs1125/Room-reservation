@@ -129,27 +129,7 @@ document.addEventListener(
         // =====================================================
         // 利用者ごとの表示色
         // =====================================================
-        function getUserColor(userId) {
-
-            const colors = [
-                "#0d6efd",
-                "#198754",
-                "#dc3545",
-                "#6f42c1",
-                "#fd7e14",
-                "#20c997",
-                "#d63384",
-                "#0dcaf0",
-                "#6c757d",
-                "#795548"
-            ];
-
-            return colors[
-                (userId - 1) % colors.length
-            ];
-        }
-
-
+        
         const calendar =
             new FullCalendar.Calendar(
                 calendarEl,
@@ -175,59 +155,7 @@ document.addEventListener(
                     // 予約データ取得
                     // 利用者ごとに色を付ける
                     // =========================================
-                    events: function(
-                        info,
-                        successCallback,
-                        failureCallback
-                    ) {
-
-                        fetch(
-                            "/api/calendar-events"
-                        )
-
-                        .then(
-                            response =>
-                                response.json()
-                        )
-
-                        .then(
-                            events => {
-
-                                const coloredEvents =
-                                    events.map(
-                                        event => {
-
-                                            const color =
-                                                getUserColor(
-                                                    event.user_id
-                                                );
-
-                                            return {
-                                                ...event,
-                                                backgroundColor:
-                                                    color,
-                                                borderColor:
-                                                    color
-                                            };
-                                        }
-                                    );
-
-                                successCallback(
-                                    coloredEvents
-                                );
-                            }
-                        )
-
-                        .catch(
-                            error => {
-
-                                failureCallback(
-                                    error
-                                );
-                            }
-                        );
-                    },
-
+                    events: "/api/calendar-events",
 
                     // =========================================
                     // 日付クリック
@@ -342,10 +270,13 @@ document.addEventListener(
 
                             "利用目的：" +
                             (
-                                event.extendedProps.purpose
-                                || "－"
+                                event.extendedProps.details_visible
+                                ? (
+                                    event.extendedProps.purpose
+                                    || "－"
+                                )
+                                : "非表示"
                             );
-
 
                         alert(
                             message

@@ -94,6 +94,19 @@ def load_user(user_id):
 
 JST = ZoneInfo("Asia/Tokyo")
 
+USER_COLORS = [
+    "#0d6efd",
+    "#198754",
+    "#dc3545",
+    "#6f42c1",
+    "#fd7e14",
+    "#20c997",
+    "#d63384",
+    "#0dcaf0",
+    "#6c757d",
+    "#795548",
+]
+
 # メール送信関連
 # =========================================================
 # 新規登録用メール認証トークン
@@ -1401,11 +1414,25 @@ def calendar_events():
     events = []
 
     for reservation in reservations:
-
         if reservation.status == "approved":
             status_text = "承認済"
         else:
             status_text = "申請中"
+
+        is_own = (
+            reservation.user_id
+            == current_user.id
+        )
+
+        details_visible = (
+            current_user.is_admin
+            or is_own
+        )
+
+        color = USER_COLORS[
+            (reservation.user_id - 1)
+            % len(USER_COLORS)
+        ]
 
         events.append({
             "id": reservation.id,
@@ -1415,13 +1442,38 @@ def calendar_events():
                 f"({status_text})"
             ),
 
-            "start": reservation.start_datetime.isoformat(),
-            "end": reservation.end_datetime.isoformat(),
-            "status": reservation.status,
-            "people": reservation.people,
-            "purpose": reservation.purpose or "",
-            "user_name": reservation.user.name,
-            "user_id": reservation.user_id,
+            "start":
+                reservation.start_datetime.isoformat(),
+
+            "end":
+                reservation.end_datetime.isoformat(),
+
+            "status":
+                reservation.status,
+
+            "people":
+                reservation.people,
+
+            "user_name": (
+                reservation.user.name
+                if details_visible
+                else "他の利用者"
+            ),
+
+            "purpose": (
+                reservation.purpose or ""
+                if details_visible
+                else ""
+            ),
+
+            "details_visible":
+                details_visible,
+
+            "backgroundColor":
+                color,
+
+            "borderColor":
+                color,
         })
 
     return jsonify(events)
