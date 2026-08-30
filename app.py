@@ -94,6 +94,19 @@ def load_user(user_id):
 
 JST = ZoneInfo("Asia/Tokyo")
 
+ALLOWED_EMAIL_DOMAIN = "cis.fukuoka-u.ac.jp"
+
+def is_allowed_email(email):
+
+    email = email.strip().lower()
+
+    if "@" not in email:
+        return False
+
+    domain = email.rsplit("@", 1)[1]
+
+    return domain == ALLOWED_EMAIL_DOMAIN
+
 USER_COLORS = [
     "#0d6efd",
     "#198754",
@@ -365,6 +378,17 @@ def register():
                 url_for("register")
             )
 
+        if not is_allowed_email(email):
+
+            flash(
+                "cis.fukuoka-u.ac.jp の"
+                "メールアドレスを入力してください。"
+            )
+
+            return redirect(
+                url_for("register")
+            )
+
         existing = User.query.filter_by(
             email=email
         ).first()
@@ -454,6 +478,16 @@ def complete_registration(token):
 
         flash(
             "登録用URLが無効、または有効期限が切れています。"
+        )
+
+        return redirect(
+            url_for("register")
+        )
+
+    if not is_allowed_email(email):
+
+        flash(
+            "このメールアドレスでは登録できません。"
         )
 
         return redirect(
