@@ -1262,6 +1262,8 @@ def approve_reservation(reservation_id):
         )
 
     reservation.status = "approved"
+    reservation.approved_at = datetime.now(JST)
+    reservation.approved_by = current_user.id
 
     db.session.commit()
 
@@ -1322,6 +1324,8 @@ def reject_reservation(reservation_id):
         )
 
     reservation.status = "rejected"
+    reservation.rejected_at = datetime.now(JST)
+    reservation.rejected_by = current_user.id
 
     db.session.commit()
 
@@ -1500,8 +1504,11 @@ def approve_reservation_batch(batch_id):
             url_for("admin_dashboard")
         )
 
+    approved_at = datetime.now(JST)
     for reservation in reservations:
         reservation.status = "approved"
+        reservation.approved_at = approved_at
+        reservation.approved_by = current_user.id
 
     db.session.commit()
 
@@ -1577,8 +1584,12 @@ def reject_reservation_batch(batch_id):
             url_for("admin_dashboard")
         )
 
+    rejected_at = datetime.now(JST)
+
     for reservation in reservations:
         reservation.status = "rejected"
+        reservation.rejected_at = rejected_at
+        reservation.rejected_by = current_user.id
 
     db.session.commit()
 
@@ -1718,10 +1729,18 @@ def admin_reservations():
         Reservation.start_datetime.desc()
     ).all()
 
+    users = User.query.all()
+
+    user_names = {
+        user.id: user.name
+        for user in users
+    }
+
     return render_template(
         "admin_reservations.html",
         reservations=reservations,
-        JST=JST
+        JST=JST,
+        user_names=user_names
     )
 
 # =========================================================

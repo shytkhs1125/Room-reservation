@@ -154,6 +154,16 @@ class Reservation(db.Model):
         nullable=True
     )
 
+    rejected_at = db.Column(
+        db.DateTime(timezone=True),
+        nullable=True
+    )
+
+    rejected_by = db.Column(
+        db.Integer,
+        nullable=True
+    )
+    
     user = db.relationship(
         "User",
         foreign_keys=[user_id]

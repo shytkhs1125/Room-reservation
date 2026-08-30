@@ -14,109 +14,352 @@
         rel="stylesheet">
 </head>
 
+
 <body class="bg-light">
 
 <div class="container py-4">
+
+
+    <!-- ========================================= -->
+    <!-- タイトル -->
+    <!-- ========================================= -->
 
     <h3 class="mb-4">
         予約履歴
     </h3>
 
 
-    {% for reservation in reservations %}
+    <!-- ========================================= -->
+    <!-- Flashメッセージ -->
+    <!-- ========================================= -->
 
-    <div class="card mb-3">
+    {% with messages = get_flashed_messages() %}
 
-        <div class="card-body">
+        {% if messages %}
 
-            <strong>
-                {{ reservation.start_datetime.astimezone(JST).strftime("%Y/%m/%d") }}
-            </strong>
+            {% for message in messages %}
 
-            <br>
+                <div class="alert alert-info">
+                    {{ message }}
+                </div>
 
-            {{ reservation.start_datetime.astimezone(JST).strftime("%H:%M") }}
-            ～
-            {{ reservation.end_datetime.astimezone(JST).strftime("%H:%M") }}
+            {% endfor %}
 
-            <br><br>
+        {% endif %}
 
-            利用者：
-            {{ reservation.user.name }}
+    {% endwith %}
 
-            <br>
 
-            利用人数：
-            {{ reservation.people }}人
+    <!-- ========================================= -->
+    <!-- 予約履歴 -->
+    <!-- ========================================= -->
 
-            <br>
+    {% if reservations %}
 
-            利用目的：
-            {{ reservation.purpose or "－" }}
+        {% for reservation in reservations %}
 
-            <br>
+            <div class="card shadow-sm mb-3">
 
-            備考：
-            {{ reservation.note or "－" }}
+                <div class="card-body">
 
-            <br><br>
 
-            状態：
+                    <!-- 利用日時 -->
 
-            {% if reservation.status == "pending" %}
+                    <h5 class="card-title mb-3">
 
-                <span class="badge bg-warning text-dark">
-                    申請中
-                </span>
+                        {{
+                            reservation.start_datetime
+                            .astimezone(JST)
+                            .strftime('%Y/%m/%d')
+                        }}
 
-            {% elif reservation.status == "approved" %}
+                        &nbsp;
 
-                <span class="badge bg-success">
-                    承認済
-                </span>
+                        {{
+                            reservation.start_datetime
+                            .astimezone(JST)
+                            .strftime('%H:%M')
+                        }}
 
-            {% elif reservation.status == "rejected" %}
+                        ～
 
-                <span class="badge bg-danger">
-                    却下
-                </span>
+                        {{
+                            reservation.end_datetime
+                            .astimezone(JST)
+                            .strftime('%H:%M')
+                        }}
 
-            {% elif reservation.status == "cancelled" %}
+                    </h5>
 
-                <span class="badge bg-secondary">
-                    キャンセル
-                </span>
 
-            {% else %}
+                    <!-- 利用者 -->
 
-                <span class="badge bg-secondary">
-                    {{ reservation.status }}
-                </span>
+                    <div class="mb-1">
 
-            {% endif %}
+                        <strong>
+                            利用者：
+                        </strong>
 
-        </div>
+                        {{ reservation.user.name }}
 
-    </div>
+                    </div>
+
+
+                    <!-- 人数 -->
+
+                    <div class="mb-1">
+
+                        <strong>
+                            利用人数：
+                        </strong>
+
+                        {{ reservation.people }}人
+
+                    </div>
+
+
+                    <!-- 利用目的 -->
+
+                    <div class="mb-1">
+
+                        <strong>
+                            利用目的：
+                        </strong>
+
+                        {{ reservation.purpose or "－" }}
+
+                    </div>
+
+
+                    <!-- 備考 -->
+
+                    <div class="mb-1">
+
+                        <strong>
+                            備考：
+                        </strong>
+
+                        {{ reservation.note or "－" }}
+
+                    </div>
+
+
+                    <!-- ================================= -->
+                    <!-- 状態 -->
+                    <!-- ================================= -->
+
+                    <div class="mt-3 mb-2">
+
+                        <strong>
+                            状態：
+                        </strong>
+
+
+                        {% if reservation.status == "pending" %}
+
+                            <span class="badge bg-warning text-dark">
+                                承認待ち
+                            </span>
+
+
+                        {% elif reservation.status == "approved" %}
+
+                            <span class="badge bg-success">
+                                承認済
+                            </span>
+
+
+                        {% elif reservation.status == "rejected" %}
+
+                            <span class="badge bg-danger">
+                                却下
+                            </span>
+
+
+                        {% elif reservation.status == "cancelled" %}
+
+                            <span class="badge bg-secondary">
+                                キャンセル
+                            </span>
+
+
+                        {% else %}
+
+                            <span class="badge bg-secondary">
+                                {{ reservation.status }}
+                            </span>
+
+                        {% endif %}
+
+                    </div>
+
+
+                    <!-- ================================= -->
+                    <!-- 承認情報 -->
+                    <!-- ================================= -->
+
+                    {% if reservation.status == "approved" %}
+
+                        <hr>
+
+                        <div class="mb-1">
+
+                            <strong>
+                                承認者：
+                            </strong>
+
+                            {{
+                                user_names.get(
+                                    reservation.approved_by,
+                                    "－"
+                                )
+                            }}
+
+                        </div>
+
+
+                        <div class="mb-1">
+
+                            <strong>
+                                承認日時：
+                            </strong>
+
+                            {% if reservation.approved_at %}
+
+                                {{
+                                    reservation.approved_at
+                                    .astimezone(JST)
+                                    .strftime('%Y/%m/%d %H:%M')
+                                }}
+
+                            {% else %}
+
+                                －
+
+                            {% endif %}
+
+                        </div>
+
+                    {% endif %}
+
+
+                    <!-- ================================= -->
+                    <!-- 却下情報 -->
+                    <!-- ================================= -->
+
+                    {% if reservation.status == "rejected" %}
+
+                        <hr>
+
+                        <div class="mb-1">
+
+                            <strong>
+                                却下者：
+                            </strong>
+
+                            {{
+                                user_names.get(
+                                    reservation.rejected_by,
+                                    "－"
+                                )
+                            }}
+
+                        </div>
+
+
+                        <div class="mb-1">
+
+                            <strong>
+                                却下日時：
+                            </strong>
+
+                            {% if reservation.rejected_at %}
+
+                                {{
+                                    reservation.rejected_at
+                                    .astimezone(JST)
+                                    .strftime('%Y/%m/%d %H:%M')
+                                }}
+
+                            {% else %}
+
+                                －
+
+                            {% endif %}
+
+                        </div>
+
+                    {% endif %}
+
+
+                    <!-- ================================= -->
+                    <!-- 申請日時 -->
+                    <!-- ================================= -->
+
+                    {% if reservation.created_at %}
+
+                        <hr>
+
+                        <div class="small text-muted">
+
+                            申請日時：
+
+                            {{
+                                reservation.created_at
+                                .astimezone(JST)
+                                .strftime('%Y/%m/%d %H:%M')
+                            }}
+
+                        </div>
+
+                    {% endif %}
+
+
+                </div>
+
+            </div>
+
+        {% endfor %}
+
 
     {% else %}
 
-    <p>
-        予約履歴はありません。
-    </p>
+        <div class="alert alert-secondary">
 
-    {% endfor %}
+            予約履歴はありません。
+
+        </div>
+
+    {% endif %}
 
 
-    <a
-        href="{{ url_for('admin_dashboard') }}"
-        class="btn btn-outline-secondary">
+    <!-- ========================================= -->
+    <!-- 戻る -->
+    <!-- ========================================= -->
 
-        管理画面へ戻る
+    <div class="d-grid gap-2 mt-4">
 
-    </a>
+        <a
+            href="{{ url_for('admin_dashboard') }}"
+            class="btn btn-outline-secondary">
+
+            管理画面に戻る
+
+        </a>
+
+        <a
+            href="{{ url_for('index') }}"
+            class="btn btn-outline-secondary">
+
+            トップページに戻る
+
+        </a>
+
+    </div>
+
 
 </div>
 
 </body>
+
 </html>
