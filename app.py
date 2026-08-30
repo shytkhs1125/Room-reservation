@@ -109,6 +109,50 @@ USER_COLORS = [
 
 # メール送信関連
 # =========================================================
+# パスワード再設定用トークン
+# =========================================================
+
+PASSWORD_RESET_TOKEN_SALT = "password-reset"
+PASSWORD_RESET_TOKEN_MAX_AGE = 60 * 60   # 1時間
+
+
+def create_password_reset_token(email):
+
+    serializer = URLSafeTimedSerializer(
+        app.config["SECRET_KEY"]
+    )
+
+    return serializer.dumps(
+        email,
+        salt=PASSWORD_RESET_TOKEN_SALT
+    )
+
+
+def verify_password_reset_token(token):
+
+    serializer = URLSafeTimedSerializer(
+        app.config["SECRET_KEY"]
+    )
+
+    try:
+
+        email = serializer.loads(
+            token,
+            salt=PASSWORD_RESET_TOKEN_SALT,
+            max_age=PASSWORD_RESET_TOKEN_MAX_AGE
+        )
+
+        return email
+
+    except SignatureExpired:
+
+        return None
+
+    except BadSignature:
+
+        return None
+    
+# =========================================================
 # 新規登録用メール認証トークン
 # =========================================================
 
@@ -1741,6 +1785,165 @@ def admin_reservations():
         reservations=reservations,
         JST=JST,
         user_names=user_names
+    )
+
+@app.route(
+    "/forgot-password",
+    methods=["GET", "POST"]
+)
+def forgot_password():
+
+    if request.method == "POST":
+
+        email = request.form.get(
+            "email",
+            ""
+        ).strip()
+
+        user = User.query.filter_by(
+            email=email
+        ).first()
+
+        # 存在するメールアドレスの場合だけ送信
+        if user is not None:
+
+            token = create_password_reset_token(
+                email
+            )
+
+            reset_url = (
+                os.environ["APP_BASE_URL"].rstrip("/")
+                + url_for(
+                    "reset_password",
+                    token=token
+                )
+            )
+
+            try:
+
+                send_email(
+                    email,
+                    "パスワード再設定",
+                    (
+                        "パスワードを再設定するには、"
+                        "以下のURLを開いてください。\n\n"
+                        f"{reset_url}\n\n"
+                        "このURLの有効期限は1時間です。"
+                    )
+                )
+
+            except Exception as e:
+
+                print(
+                    "Password reset email error:",
+                    e
+                )
+
+        # メールアドレスの存在有無は表示しない
+        flash(
+            "入力されたメールアドレスが"
+            "登録されている場合、"
+            "パスワード再設定用メールを送信しました。"
+        )
+
+        return redirect(
+            url_for("login")
+        )
+
+    return render_template(
+        "forgot_password.html"
+    )
+
+@app.route(
+    "/reset-password/<token>",
+    methods=["GET", "POST"]
+)
+def reset_password(token):
+
+    email = verify_password_reset_token(
+        token
+    )
+
+    if email is None:
+
+        flash(
+            "パスワード再設定用URLが"
+            "無効または期限切れです。"
+        )
+
+        return redirect(
+            url_for("forgot_password")
+        )
+
+    user = User.query.filter_by(
+        email=email
+    ).first()
+
+    if user is None:
+
+        flash(
+            "利用者情報が見つかりません。"
+        )
+
+        return redirect(
+            url_for("login")
+        )
+
+    if request.method == "POST":
+
+        password = request.form.get(
+            "password",
+            ""
+        )
+
+        password_confirm = request.form.get(
+            "password_confirm",
+            ""
+        )
+
+        if not password:
+
+            flash(
+                "新しいパスワードを"
+                "入力してください。"
+            )
+
+            return render_template(
+                "reset_password.html",
+                token=token
+            )
+
+        if password != password_confirm:
+
+            flash(
+                "確認用パスワードが"
+                "一致しません。"
+            )
+
+            return render_template(
+                "reset_password.html",
+                token=token
+            )
+
+        user.set_password(
+            password
+        )
+
+        db.session.commit()
+
+        flash(
+            "パスワードを変更しました。"
+            "新しいパスワードで"
+            "ログインしてください。"
+        )
+
+        return redirect(
+            url_for("login")
+        )
+
+    return render_template(
+        "reset_password.html",
+        token=token
     )
 
 # =========================================================
