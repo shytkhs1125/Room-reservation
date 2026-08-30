@@ -381,8 +381,8 @@ def register():
         if not is_allowed_email(email):
 
             flash(
-                "cis.fukuoka-u.ac.jp の"
-                "メールアドレスを入力してください。"
+                "大学のメールアドレス"
+                "（cis.fukuoka-u.ac.jp ）を入力してください。"
             )
 
             return redirect(
