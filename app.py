@@ -562,6 +562,42 @@ def complete_registration(token):
 
         db.session.commit()
 
+        # -------------------------------------------------
+        # 管理者へ新規利用登録を通知
+        # -------------------------------------------------
+
+        admin_url = (
+            os.environ["APP_BASE_URL"].rstrip("/")
+            + "/admin"
+        )
+
+        try:
+            admin_users = User.query.filter_by(
+                role="admin",
+                status="active"
+            ).all()
+
+            for admin in admin_users:
+
+                send_email(
+                    admin.email,
+                    "【実習室予約】新しい利用登録申請があります",
+                    (
+                        "新しい利用登録申請がありました。\n\n"
+                        f"氏名：{user.name}\n"
+                        f"メールアドレス：{user.email}\n\n"
+                        "管理画面から承認してください。\n"
+                        f"{admin_url}"
+                    )
+                )
+
+        except Exception as e:
+
+            print(
+                "Registration notification email error:",
+                e
+            )
+
         flash(
             "利用登録を受け付けました。"
             "管理者の承認後にログインできます。"
