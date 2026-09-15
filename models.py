@@ -1,19 +1,37 @@
 from datetime import datetime, timezone
 
-from flask_login import UserMixin
 from flask_sqlalchemy import SQLAlchemy
-from werkzeug.security import generate_password_hash, check_password_hash
+from flask_login import UserMixin
+
+from werkzeug.security import (
+    generate_password_hash,
+    check_password_hash,
+)
 
 
 db = SQLAlchemy()
 
 
-class User(UserMixin, db.Model):
+# =========================================================
+# 利用者
+# =========================================================
+
+class User(
+    UserMixin,
+    db.Model
+):
+
     __tablename__ = "users"
 
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(
+        db.Integer,
+        primary_key=True
+    )
 
-    name = db.Column(db.String(100), nullable=False)
+    name = db.Column(
+        db.String(100),
+        nullable=False
+    )
 
     email = db.Column(
         db.String(255),
@@ -27,14 +45,12 @@ class User(UserMixin, db.Model):
         nullable=False
     )
 
-    # user / admin
     role = db.Column(
         db.String(20),
         nullable=False,
         default="user"
     )
 
-    # pending / active / rejected
     status = db.Column(
         db.String(20),
         nullable=False,
@@ -44,27 +60,68 @@ class User(UserMixin, db.Model):
     created_at = db.Column(
         db.DateTime(timezone=True),
         nullable=False,
-        default=lambda: datetime.now(timezone.utc)
+        default=lambda: datetime.now(
+            timezone.utc
+        )
     )
 
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
 
-    def check_password(self, password):
+    # -----------------------------------------------------
+    # パスワード設定
+    # -----------------------------------------------------
+
+    def set_password(
+        self,
+        password
+    ):
+
+        self.password_hash = (
+            generate_password_hash(
+                password
+            )
+        )
+
+
+    # -----------------------------------------------------
+    # パスワード確認
+    # -----------------------------------------------------
+
+    def check_password(
+        self,
+        password
+    ):
+
         return check_password_hash(
             self.password_hash,
             password
         )
 
+
+    # -----------------------------------------------------
+    # 管理者判定
+    # -----------------------------------------------------
+
     @property
     def is_admin(self):
+
         return self.role == "admin"
 
 
-class Room(db.Model):
+
+# =========================================================
+# 部屋
+# =========================================================
+
+class Room(
+    db.Model
+):
+
     __tablename__ = "rooms"
 
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(
+        db.Integer,
+        primary_key=True
+    )
 
     name = db.Column(
         db.String(200),
@@ -73,27 +130,76 @@ class Room(db.Model):
 
     capacity = db.Column(
         db.Integer,
+        nullable=False
+    )
+
+    # -----------------------------------------------------
+    # 貸切利用かどうか
+    #
+    # False:
+    #   電子情報計算機実習室など
+    #   定員以内なら複数グループが同時利用可能
+    #
+    # True:
+    #   メディア工学研究室2など
+    #   同時間帯には1件のみ予約可能
+    # -----------------------------------------------------
+
+    exclusive = db.Column(
+        db.Boolean,
         nullable=False,
-        default=20
+        default=False
     )
 
 
-class Reservation(db.Model):
+
+# =========================================================
+# 予約
+# =========================================================
+
+class Reservation(
+    db.Model
+):
+
     __tablename__ = "reservations"
 
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(
+        db.Integer,
+        primary_key=True
+    )
+
+
+    # -----------------------------------------------------
+    # 部屋
+    # -----------------------------------------------------
 
     room_id = db.Column(
         db.Integer,
-        db.ForeignKey("rooms.id"),
-        nullable=False
+        db.ForeignKey(
+            "rooms.id"
+        ),
+        nullable=False,
+        index=True
     )
+
+
+    # -----------------------------------------------------
+    # 利用者
+    # -----------------------------------------------------
 
     user_id = db.Column(
         db.Integer,
-        db.ForeignKey("users.id"),
-        nullable=False
+        db.ForeignKey(
+            "users.id"
+        ),
+        nullable=False,
+        index=True
     )
+
+
+    # -----------------------------------------------------
+    # 利用日時
+    # -----------------------------------------------------
 
     start_datetime = db.Column(
         db.DateTime(timezone=True),
@@ -107,10 +213,20 @@ class Reservation(db.Model):
         index=True
     )
 
+
+    # -----------------------------------------------------
+    # 利用人数
+    # -----------------------------------------------------
+
     people = db.Column(
         db.Integer,
         nullable=False
     )
+
+
+    # -----------------------------------------------------
+    # 利用目的・備考
+    # -----------------------------------------------------
 
     purpose = db.Column(
         db.String(255),
@@ -123,13 +239,26 @@ class Reservation(db.Model):
     )
 
 
+    # -----------------------------------------------------
+    # 複数日程をまとめた申請ID
+    # -----------------------------------------------------
+
     batch_id = db.Column(
         db.String(36),
         nullable=True,
         index=True
     )
-    
-    # pending / approved / rejected / cancelled
+
+
+    # -----------------------------------------------------
+    # 状態
+    #
+    # pending
+    # approved
+    # rejected
+    # cancelled
+    # -----------------------------------------------------
+
     status = db.Column(
         db.String(20),
         nullable=False,
@@ -137,11 +266,23 @@ class Reservation(db.Model):
         index=True
     )
 
+
+    # -----------------------------------------------------
+    # 申請日時
+    # -----------------------------------------------------
+
     created_at = db.Column(
         db.DateTime(timezone=True),
         nullable=False,
-        default=lambda: datetime.now(timezone.utc)
+        default=lambda: datetime.now(
+            timezone.utc
+        )
     )
+
+
+    # -----------------------------------------------------
+    # 承認情報
+    # -----------------------------------------------------
 
     approved_at = db.Column(
         db.DateTime(timezone=True),
@@ -150,9 +291,13 @@ class Reservation(db.Model):
 
     approved_by = db.Column(
         db.Integer,
-        db.ForeignKey("users.id"),
         nullable=True
     )
+
+
+    # -----------------------------------------------------
+    # 却下情報
+    # -----------------------------------------------------
 
     rejected_at = db.Column(
         db.DateTime(timezone=True),
@@ -163,11 +308,19 @@ class Reservation(db.Model):
         db.Integer,
         nullable=True
     )
-    
-    user = db.relationship(
-        "User",
-        foreign_keys=[user_id]
+
+
+    # -----------------------------------------------------
+    # リレーション
+    # -----------------------------------------------------
+
+    room = db.relationship(
+        "Room",
+        backref="reservations"
     )
 
-    room = db.relationship("Room")
-    
+    user = db.relationship(
+        "User",
+        backref="reservations"
+    )
+
