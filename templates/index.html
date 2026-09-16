@@ -50,10 +50,41 @@
     </p>
 
 
+    {% if rooms|length > 1 %}
+
+    <div class="mb-4">
+
+        <label class="form-label">
+            部屋を選択
+        </label>
+
+        <select
+            id="room-select"
+            class="form-select">
+
+            {% for r in rooms %}
+
+            <option
+                value="{{ r.id }}"
+                {% if r.id == room.id %}selected{% endif %}>
+
+                {{ r.name }}
+
+            </option>
+
+            {% endfor %}
+
+        </select>
+
+    </div>
+
+    {% endif %}
+
+
     <div class="d-grid gap-2 mb-4">
 
         <a
-            href="{{ url_for('new_reservation') }}"
+            href="{{ url_for('new_reservation', room_id=room.id) }}"
             class="btn btn-primary">
 
             利用申請
@@ -122,6 +153,29 @@ document.addEventListener(
     "DOMContentLoaded",
     function() {
 
+        const roomSelect =
+            document.getElementById("room-select");
+
+        if (roomSelect) {
+
+            roomSelect.addEventListener(
+                "change",
+                function() {
+
+                    const roomId =
+                        roomSelect.value;
+
+                    window.location.href =
+                        "{{ url_for('index') }}" +
+                        "?room_id=" +
+                        encodeURIComponent(
+                            roomId
+                        );
+                }
+            );
+        }
+
+
         const calendarEl =
             document.getElementById("calendar");
 
@@ -155,7 +209,7 @@ document.addEventListener(
                     // 予約データ取得
                     // 利用者ごとに色を付ける
                     // =========================================
-                    events: "/api/calendar-events",
+                    events: "/api/calendar-events?room_id={{ room.id }}",
 
                     // =========================================
                     // 日付クリック
@@ -195,7 +249,8 @@ document.addEventListener(
 
                         window.location.href =
                             "{{ url_for('new_reservation') }}" +
-                            "?date=" +
+                            "?room_id={{ room.id }}" +
+                            "&date=" +
                             encodeURIComponent(
                                 date
                             );
