@@ -317,6 +317,25 @@ def max_people_during_period(
     return max_people
 
 
+def overlapping_reservation_count(
+    room_id,
+    start_dt,
+    end_dt
+):
+
+    return Reservation.query.filter(
+        Reservation.room_id == room_id,
+        Reservation.status.in_(
+            [
+                "pending",
+                "approved"
+            ]
+        ),
+        Reservation.start_datetime < end_dt,
+        Reservation.end_datetime > start_dt
+    ).count()
+
+
 # =========================================================
 # トップページ
 # =========================================================
@@ -333,16 +352,30 @@ def index():
             url_for("login")
         )
 
+    rooms = Room.query.order_by(
+        Room.id
+    ).all()
+
+    room_id = request.args.get(
+        "room_id",
+        type=int
+    )
+
+    if room_id is None:
+        room_id = 1
 
     room = db.session.get(
         Room,
-        1
+        room_id
     )
 
+    if room is None and rooms:
+        room = rooms[0]
 
     return render_template(
         "index.html",
-        room=room
+        room=room,
+        rooms=rooms
     )
 
 
@@ -833,6 +866,11 @@ def availability():
         "end"
     )
 
+    room_id = request.args.get(
+        "room_id",
+        default=1,
+        type=int
+    )
 
     if not start_datetime or not end_datetime:
 
@@ -843,6 +881,19 @@ def availability():
             }
         ), 400
 
+    room = db.session.get(
+        Room,
+        room_id
+    )
+
+    if room is None:
+
+        return jsonify(
+            {
+                "error":
+                "指定された部屋が見つかりません。"
+            }
+        ), 404
 
     try:
 
@@ -858,7 +909,6 @@ def availability():
             tzinfo=JST
         )
 
-
     except ValueError:
 
         return jsonify(
@@ -867,7 +917,6 @@ def availability():
                 "日時が不正です。"
             }
         ), 400
-
 
     if end_dt <= start_dt:
 
@@ -879,12 +928,28 @@ def availability():
             }
         ), 400
 
+    if room.exclusive:
 
-    room = db.session.get(
-        Room,
-        1
-    )
+        overlap_count = (
+            overlapping_reservation_count(
+                room.id,
+                start_dt,
+                end_dt
+            )
+        )
 
+        available = (
+            overlap_count == 0
+        )
+
+        return jsonify(
+            {
+                "capacity": room.capacity,
+                "exclusive": True,
+                "available": available,
+                "reserved": not available
+            }
+        )
 
     used_people = max_people_during_period(
         room.id,
@@ -892,16 +957,15 @@ def availability():
         end_dt
     )
 
-
     available_people = (
         room.capacity
         - used_people
     )
 
-
     return jsonify(
         {
             "capacity": room.capacity,
+            "exclusive": False,
             "used": used_people,
             "available": available_people
         }
@@ -919,32 +983,49 @@ def availability():
 @login_required
 def new_reservation():
 
+    room_id_value = (
+        request.form.get("room_id")
+        or request.args.get("room_id")
+        or "1"
+    )
+
+    try:
+        room_id = int(room_id_value)
+    except (TypeError, ValueError):
+        room_id = 1
+
     room = db.session.get(
         Room,
-        1
+        room_id
     )
+
+    if room is None:
+
+        flash(
+            "指定された部屋が見つかりません。"
+        )
+
+        return redirect(
+            url_for("index")
+        )
+
+    rooms = Room.query.order_by(
+        Room.id
+    ).all()
 
     selected_date = request.args.get(
         "date",
         ""
     )
 
-    # -----------------------------------------------------
-    # GETの場合は申請画面を表示
-    # -----------------------------------------------------
-
     if request.method != "POST":
 
         return render_template(
             "reservation.html",
             room=room,
+            rooms=rooms,
             selected_date=selected_date
         )
-
-
-    # -----------------------------------------------------
-    # フォームから複数日程を取得
-    # -----------------------------------------------------
 
     dates = request.form.getlist(
         "date[]"
@@ -962,22 +1043,15 @@ def new_reservation():
         "people[]"
     )
 
-
     purpose = request.form.get(
         "purpose",
         ""
     ).strip()
 
-
     note = request.form.get(
         "note",
         ""
     ).strip()
-
-
-    # -----------------------------------------------------
-    # 入力数チェック
-    # -----------------------------------------------------
 
     if not dates:
 
@@ -986,9 +1060,11 @@ def new_reservation():
         )
 
         return redirect(
-            url_for("new_reservation")
+            url_for(
+                "new_reservation",
+                room_id=room.id
+            )
         )
-
 
     if not (
         len(dates)
@@ -1002,13 +1078,11 @@ def new_reservation():
         )
 
         return redirect(
-            url_for("new_reservation")
+            url_for(
+                "new_reservation",
+                room_id=room.id
+            )
         )
-
-
-    # -----------------------------------------------------
-    # 各日程をPythonの日時に変換
-    # -----------------------------------------------------
 
     schedules = []
     seen_schedules = set()
@@ -1035,7 +1109,6 @@ def new_reservation():
                 tzinfo=JST
             )
 
-
             end_dt = datetime.fromisoformat(
                 date_value
                 + "T"
@@ -1044,11 +1117,9 @@ def new_reservation():
                 tzinfo=JST
             )
 
-
             people = int(
                 people_value
             )
-
 
         except ValueError:
 
@@ -1058,13 +1129,11 @@ def new_reservation():
             )
 
             return redirect(
-                url_for("new_reservation")
+                url_for(
+                    "new_reservation",
+                    room_id=room.id
+                )
             )
-
-
-        # -------------------------------------------------
-        # 開始・終了時刻チェック
-        # -------------------------------------------------
 
         if end_dt <= start_dt:
 
@@ -1074,20 +1143,25 @@ def new_reservation():
             )
 
             return redirect(
-                url_for("new_reservation")
+                url_for(
+                    "new_reservation",
+                    room_id=room.id
+                )
             )
 
         if start_dt.date() < date.today():
+
             flash(
-                f"{date_value} は過去の日付のため予約できません。"
-            )
-            return redirect(
-                url_for("new_reservation")
+                f"{date_value} は過去の日付のため"
+                "予約できません。"
             )
 
-        # -------------------------------------------------
-        # 人数チェック
-        # -------------------------------------------------
+            return redirect(
+                url_for(
+                    "new_reservation",
+                    room_id=room.id
+                )
+            )
 
         if people < 1 or people > room.capacity:
 
@@ -1098,7 +1172,10 @@ def new_reservation():
             )
 
             return redirect(
-                url_for("new_reservation")
+                url_for(
+                    "new_reservation",
+                    room_id=room.id
+                )
             )
 
         schedule_key = (
@@ -1107,37 +1184,49 @@ def new_reservation():
         )
 
         if schedule_key in seen_schedules:
+
             flash(
-                f"{date_value} {start_value}～{end_value} が"
-                f"重複しています。"
-            )
-            return redirect(
-                url_for("new_reservation")
+                f"{date_value} "
+                f"{start_value}～{end_value} が"
+                "重複しています。"
             )
 
-        seen_schedules.add(schedule_key)
+            return redirect(
+                url_for(
+                    "new_reservation",
+                    room_id=room.id
+                )
+            )
+
+        seen_schedules.add(
+            schedule_key
+        )
 
         for existing_schedule in schedules:
-            # 同じ日の予約だけ確認
+
             if (
                 existing_schedule["start"].date()
                 == start_dt.date()
             ):
-                # 時間帯が重なっているか
+
                 if (
                     existing_schedule["start"] < end_dt
                     and
                     existing_schedule["end"] > start_dt
                 ):
+
                     flash(
                         f"{date_value} の日程で"
-                        f"時間帯が重複しています。"
+                        "時間帯が重複しています。"
                     )
 
                     return redirect(
-                        url_for("new_reservation")
+                        url_for(
+                            "new_reservation",
+                            room_id=room.id
+                        )
                     )
-        
+
         schedules.append(
             {
                 "start": start_dt,
@@ -1146,28 +1235,11 @@ def new_reservation():
             }
         )
 
-
-    # -----------------------------------------------------
-    # 一括申請を識別するID
-    # -----------------------------------------------------
-
     batch_id = str(
         uuid.uuid4()
     )
 
-
-    # =====================================================
-    # ここからDBトランザクション
-    # =====================================================
-
     try:
-
-        # -------------------------------------------------
-        # 部屋単位で予約処理をロック
-        #
-        # 同時に複数ユーザーが申請しても、
-        # 1件ずつ順番に人数チェックする
-        # -------------------------------------------------
 
         db.session.execute(
             text(
@@ -1179,57 +1251,74 @@ def new_reservation():
             }
         )
 
-
-        # -------------------------------------------------
-        # ロック取得後に全日程を再チェック
-        # -------------------------------------------------
-
         for schedule in schedules:
 
-            used_people = max_people_during_period(
-                room.id,
-                schedule["start"],
-                schedule["end"]
+            local_date = (
+                schedule["start"]
+                .strftime("%Y/%m/%d")
             )
 
+            if room.exclusive:
 
-            available_people = (
-                room.capacity
-                - used_people
-            )
-
-
-            if (
-                schedule["people"]
-                > available_people
-            ):
-
-                local_date = (
-                    schedule["start"]
-                    .strftime("%Y/%m/%d")
+                overlap_count = (
+                    overlapping_reservation_count(
+                        room.id,
+                        schedule["start"],
+                        schedule["end"]
+                    )
                 )
 
+                if overlap_count > 0:
 
-                # トランザクションを終了し、
-                # advisory lockも解放
-                db.session.rollback()
+                    db.session.rollback()
 
+                    flash(
+                        f"{local_date} のこの時間帯は"
+                        f"{room.name} が既に予約されています。"
+                        "一括申請は登録されませんでした。"
+                    )
 
-                flash(
-                    f"{local_date} のこの時間帯は"
-                    f"空きが {available_people}人です。"
-                    f"一括申請は登録されませんでした。"
+                    return redirect(
+                        url_for(
+                            "new_reservation",
+                            room_id=room.id
+                        )
+                    )
+
+            else:
+
+                used_people = (
+                    max_people_during_period(
+                        room.id,
+                        schedule["start"],
+                        schedule["end"]
+                    )
                 )
 
-
-                return redirect(
-                    url_for("new_reservation")
+                available_people = (
+                    room.capacity
+                    - used_people
                 )
 
+                if (
+                    schedule["people"]
+                    > available_people
+                ):
 
-        # -------------------------------------------------
-        # 全日程が申請可能ならまとめて登録
-        # -------------------------------------------------
+                    db.session.rollback()
+
+                    flash(
+                        f"{local_date} のこの時間帯は"
+                        f"空きが {available_people}人です。"
+                        "一括申請は登録されませんでした。"
+                    )
+
+                    return redirect(
+                        url_for(
+                            "new_reservation",
+                            room_id=room.id
+                        )
+                    )
 
         for schedule in schedules:
 
@@ -1257,15 +1346,9 @@ def new_reservation():
                 status="pending"
             )
 
-
             db.session.add(
                 reservation
             )
-
-
-        # -------------------------------------------------
-        # 一括確定
-        # -------------------------------------------------
 
         db.session.commit()
 
@@ -1275,18 +1358,21 @@ def new_reservation():
         )
 
         try:
+
             admin_users = User.query.filter_by(
                 role="admin",
                 status="active"
             ).all()
 
             for admin in admin_users:
+
                 send_email(
                     admin.email,
                     "【実習室予約】新しい利用申請があります",
                     (
                         f"{current_user.name} さんから"
-                        f"{len(schedules)}件の利用申請がありました。\n\n"
+                        f"{len(schedules)}件の利用申請がありました.\n\n"
+                        f"部屋：{room.name}\n"
                         f"利用目的：{purpose or '－'}\n"
                         f"備考：{note or '－'}\n\n"
                         "以下のURLから管理画面を開けます。\n"
@@ -1295,55 +1381,50 @@ def new_reservation():
                 )
 
         except Exception as e:
+
             print(
                 "Mail send error:",
                 e
             )
 
-
     except Exception as e:
-
-        # -------------------------------------------------
-        # 途中で何か失敗した場合はすべて取消
-        # -------------------------------------------------
 
         db.session.rollback()
 
-
-        # 開発中なのでターミナルに詳細を表示
         print(
             "Reservation error:",
             e
         )
 
-
         flash(
             "申請処理中にエラーが発生しました。"
         )
 
-
         return redirect(
-            url_for("new_reservation")
+            url_for(
+                "new_reservation",
+                room_id=room.id
+            )
         )
 
-
-    # -----------------------------------------------------
-    # 正常終了
-    # -----------------------------------------------------
-
     if len(schedules) == 1:
+
         flash(
             "1件の利用申請を登録しました。"
         )
+
     else:
+
         flash(
             f"{len(schedules)}件の利用申請を"
             "まとめて登録しました。"
         )
 
-
     return redirect(
-        url_for("index")
+        url_for(
+            "index",
+            room_id=room.id
+        )
     )
 
 
@@ -1388,6 +1469,7 @@ def approve_reservation(reservation_id):
             (
                 f"{reservation.user.name} さん\n\n"
                 "以下の利用申請が承認されました。\n\n"
+                f"部屋：{reservation.room.name}\n"
                 f"利用日：{reservation.start_datetime.astimezone(JST).strftime('%Y/%m/%d')}\n"
                 f"時間：{reservation.start_datetime.astimezone(JST).strftime('%H:%M')}"
                 f" ～ {reservation.end_datetime.astimezone(JST).strftime('%H:%M')}\n"
@@ -1520,7 +1602,28 @@ def cancel_reservation(reservation_id):
 @login_required
 def calendar_events():
 
+    room_id = request.args.get(
+        "room_id",
+        default=1,
+        type=int
+    )
+
+    room = db.session.get(
+        Room,
+        room_id
+    )
+
+    if room is None:
+
+        return jsonify(
+            {
+                "error":
+                "指定された部屋が見つかりません。"
+            }
+        ), 404
+
     reservations = Reservation.query.filter(
+        Reservation.room_id == room.id,
         Reservation.status.in_([
             "pending",
             "approved"
@@ -1532,6 +1635,7 @@ def calendar_events():
     events = []
 
     for reservation in reservations:
+
         if reservation.status == "approved":
             status_text = "承認済"
         else:
@@ -1572,6 +1676,15 @@ def calendar_events():
             "people":
                 reservation.people,
 
+            "room_id":
+                reservation.room_id,
+
+            "room_name":
+                reservation.room.name,
+
+            "exclusive":
+                reservation.room.exclusive,
+
             "user_name": (
                 reservation.user.name
                 if details_visible
@@ -1595,6 +1708,7 @@ def calendar_events():
         })
 
     return jsonify(events)
+
 
 @app.route(
     "/admin/reservations/batch/<batch_id>/approve",
@@ -1649,6 +1763,7 @@ def approve_reservation_batch(batch_id):
             (
                 f"{user.name} さん\n\n"
                 "以下の利用申請が承認されました。\n\n"
+                f"部屋：{reservations[0].room.name}\n"
                 f"{schedule_text}\n\n"
                 f"利用目的：{reservations[0].purpose or '－'}\n"
                 f"備考：{reservations[0].note or '－'}\n"
@@ -2024,43 +2139,51 @@ if __name__ == "__main__":
 
     with app.app_context():
 
-        # テーブルが存在しない場合のみ作成
         db.create_all()
 
-
-        # -------------------------------------------------
-        # 部屋データを初回のみ作成
-        # -------------------------------------------------
-
-        room = db.session.get(
+        room1 = db.session.get(
             Room,
             1
         )
 
+        if room1 is None:
 
-        if room is None:
-
-            room = Room(
+            room1 = Room(
                 id=1,
                 name=(
                     "14号館3階 "
                     "電子情報計算機実習室"
                 ),
-                capacity=20
+                capacity=20,
+                exclusive=False
             )
-
 
             db.session.add(
-                room
+                room1
             )
 
-            db.session.commit()
+        room2 = db.session.get(
+            Room,
+            2
+        )
 
+        if room2 is None:
 
-            print(
-                "Room created."
+            room2 = Room(
+                id=2,
+                name=(
+                    "14号館3階 "
+                    "メディア工学研究室2"
+                ),
+                capacity=15,
+                exclusive=True
             )
 
+            db.session.add(
+                room2
+            )
+
+        db.session.commit()
 
     app.run(
         debug=True
