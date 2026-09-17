@@ -1,6 +1,6 @@
 import os
 import uuid
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
 import smtplib
 from email.message import EmailMessage
@@ -1027,20 +1027,9 @@ def new_reservation():
             selected_date=selected_date
         )
 
-    dates = request.form.getlist(
-        "date[]"
-    )
-
-    start_times = request.form.getlist(
-        "start_time[]"
-    )
-
-    end_times = request.form.getlist(
-        "end_time[]"
-    )
-
-    people_list = request.form.getlist(
-        "people[]"
+    reservation_mode = request.form.get(
+        "reservation_mode",
+        "normal"
     )
 
     purpose = request.form.get(
@@ -1053,79 +1042,298 @@ def new_reservation():
         ""
     ).strip()
 
-    if not dates:
-
-        flash(
-            "利用日を入力してください。"
-        )
-
-        return redirect(
-            url_for(
-                "new_reservation",
-                room_id=room.id
-            )
-        )
-
-    if not (
-        len(dates)
-        == len(start_times)
-        == len(end_times)
-        == len(people_list)
-    ):
-
-        flash(
-            "日程の入力内容が不正です。"
-        )
-
-        return redirect(
-            url_for(
-                "new_reservation",
-                room_id=room.id
-            )
-        )
-
     schedules = []
-    seen_schedules = set()
+    today_jst = datetime.now(JST).date()
 
-    for (
-        date_value,
-        start_value,
-        end_value,
-        people_value
-    ) in zip(
-        dates,
-        start_times,
-        end_times,
-        people_list
-    ):
+    # =====================================================
+    # 通常予約
+    # =====================================================
+
+    if reservation_mode == "normal":
+
+        dates = request.form.getlist(
+            "date[]"
+        )
+
+        start_times = request.form.getlist(
+            "start_time[]"
+        )
+
+        end_times = request.form.getlist(
+            "end_time[]"
+        )
+
+        people_list = request.form.getlist(
+            "people[]"
+        )
+
+        if not dates:
+
+            flash(
+                "利用日を入力してください。"
+            )
+
+            return redirect(
+                url_for(
+                    "new_reservation",
+                    room_id=room.id
+                )
+            )
+
+        if not (
+            len(dates)
+            == len(start_times)
+            == len(end_times)
+            == len(people_list)
+        ):
+
+            flash(
+                "日程の入力内容が不正です。"
+            )
+
+            return redirect(
+                url_for(
+                    "new_reservation",
+                    room_id=room.id
+                )
+            )
+
+        seen_schedules = set()
+
+        for (
+            date_value,
+            start_value,
+            end_value,
+            people_value
+        ) in zip(
+            dates,
+            start_times,
+            end_times,
+            people_list
+        ):
+
+            try:
+
+                start_dt = datetime.fromisoformat(
+                    date_value
+                    + "T"
+                    + start_value
+                ).replace(
+                    tzinfo=JST
+                )
+
+                end_dt = datetime.fromisoformat(
+                    date_value
+                    + "T"
+                    + end_value
+                ).replace(
+                    tzinfo=JST
+                )
+
+                people = int(
+                    people_value
+                )
+
+            except ValueError:
+
+                flash(
+                    "日時または利用人数を"
+                    "確認してください。"
+                )
+
+                return redirect(
+                    url_for(
+                        "new_reservation",
+                        room_id=room.id
+                    )
+                )
+
+            if end_dt <= start_dt:
+
+                flash(
+                    f"{date_value} の終了時刻は"
+                    f"開始時刻より後にしてください。"
+                )
+
+                return redirect(
+                    url_for(
+                        "new_reservation",
+                        room_id=room.id
+                    )
+                )
+
+            if start_dt.date() < today_jst:
+
+                flash(
+                    f"{date_value} は過去の日付のため"
+                    "予約できません。"
+                )
+
+                return redirect(
+                    url_for(
+                        "new_reservation",
+                        room_id=room.id
+                    )
+                )
+
+            if people < 1 or people > room.capacity:
+
+                flash(
+                    f"{date_value} の利用人数は"
+                    f"1～{room.capacity}人で"
+                    f"入力してください。"
+                )
+
+                return redirect(
+                    url_for(
+                        "new_reservation",
+                        room_id=room.id
+                    )
+                )
+
+            schedule_key = (
+                start_dt,
+                end_dt
+            )
+
+            if schedule_key in seen_schedules:
+
+                flash(
+                    f"{date_value} "
+                    f"{start_value}～{end_value} が"
+                    "重複しています。"
+                )
+
+                return redirect(
+                    url_for(
+                        "new_reservation",
+                        room_id=room.id
+                    )
+                )
+
+            seen_schedules.add(
+                schedule_key
+            )
+
+            for existing_schedule in schedules:
+
+                if (
+                    existing_schedule["start"].date()
+                    == start_dt.date()
+                ):
+
+                    if (
+                        existing_schedule["start"] < end_dt
+                        and
+                        existing_schedule["end"] > start_dt
+                    ):
+
+                        flash(
+                            f"{date_value} の日程で"
+                            "時間帯が重複しています。"
+                        )
+
+                        return redirect(
+                            url_for(
+                                "new_reservation",
+                                room_id=room.id
+                            )
+                        )
+
+            schedules.append(
+                {
+                    "start": start_dt,
+                    "end": end_dt,
+                    "people": people
+                }
+            )
+
+    # =====================================================
+    # 毎週繰り返し予約
+    # =====================================================
+
+    elif reservation_mode == "recurring":
+
+        recurring_start_date = request.form.get(
+            "recurring_start_date",
+            ""
+        ).strip()
+
+        recurring_start_time = request.form.get(
+            "recurring_start_time",
+            ""
+        ).strip()
+
+        recurring_end_time = request.form.get(
+            "recurring_end_time",
+            ""
+        ).strip()
+
+        recurring_people_value = request.form.get(
+            "recurring_people",
+            ""
+        ).strip()
+
+        weekday_values = request.form.getlist(
+            "recurring_weekdays[]"
+        )
+
+        recurrence_end_type = request.form.get(
+            "recurrence_end_type",
+            "date"
+        )
+
+        if (
+            not recurring_start_date
+            or not recurring_start_time
+            or not recurring_end_time
+            or not recurring_people_value
+            or not weekday_values
+        ):
+
+            flash(
+                "繰り返し予約の開始日、曜日、時間、"
+                "利用人数をすべて入力してください。"
+            )
+
+            return redirect(
+                url_for(
+                    "new_reservation",
+                    room_id=room.id
+                )
+            )
 
         try:
 
-            start_dt = datetime.fromisoformat(
-                date_value
-                + "T"
-                + start_value
-            ).replace(
-                tzinfo=JST
+            first_date = date.fromisoformat(
+                recurring_start_date
             )
 
-            end_dt = datetime.fromisoformat(
-                date_value
-                + "T"
-                + end_value
-            ).replace(
-                tzinfo=JST
-            )
+            start_time_obj = datetime.strptime(
+                recurring_start_time,
+                "%H:%M"
+            ).time()
+
+            end_time_obj = datetime.strptime(
+                recurring_end_time,
+                "%H:%M"
+            ).time()
 
             people = int(
-                people_value
+                recurring_people_value
+            )
+
+            weekdays = sorted(
+                {
+                    int(value)
+                    for value in weekday_values
+                }
             )
 
         except ValueError:
 
             flash(
-                "日時または利用人数を"
-                "確認してください。"
+                "繰り返し予約の入力内容を確認してください。"
             )
 
             return redirect(
@@ -1135,11 +1343,13 @@ def new_reservation():
                 )
             )
 
-        if end_dt <= start_dt:
+        if any(
+            weekday < 0 or weekday > 6
+            for weekday in weekdays
+        ):
 
             flash(
-                f"{date_value} の終了時刻は"
-                f"開始時刻より後にしてください。"
+                "曜日の指定が不正です。"
             )
 
             return redirect(
@@ -1149,11 +1359,37 @@ def new_reservation():
                 )
             )
 
-        if start_dt.date() < date.today():
+        if first_date < today_jst:
 
             flash(
-                f"{date_value} は過去の日付のため"
-                "予約できません。"
+                "繰り返し予約の開始日に"
+                "過去の日付は指定できません。"
+            )
+
+            return redirect(
+                url_for(
+                    "new_reservation",
+                    room_id=room.id
+                )
+            )
+
+        sample_start = datetime.combine(
+            first_date,
+            start_time_obj,
+            tzinfo=JST
+        )
+
+        sample_end = datetime.combine(
+            first_date,
+            end_time_obj,
+            tzinfo=JST
+        )
+
+        if sample_end <= sample_start:
+
+            flash(
+                "終了時刻は開始時刻より"
+                "後にしてください。"
             )
 
             return redirect(
@@ -1166,9 +1402,8 @@ def new_reservation():
         if people < 1 or people > room.capacity:
 
             flash(
-                f"{date_value} の利用人数は"
-                f"1～{room.capacity}人で"
-                f"入力してください。"
+                f"利用人数は1～{room.capacity}人で"
+                "入力してください。"
             )
 
             return redirect(
@@ -1178,62 +1413,218 @@ def new_reservation():
                 )
             )
 
-        schedule_key = (
-            start_dt,
-            end_dt
-        )
+        # -------------------------------------------------
+        # 終了日まで繰り返す
+        # -------------------------------------------------
 
-        if schedule_key in seen_schedules:
+        if recurrence_end_type == "date":
 
-            flash(
-                f"{date_value} "
-                f"{start_value}～{end_value} が"
-                "重複しています。"
-            )
+            recurring_end_date_value = request.form.get(
+                "recurring_end_date",
+                ""
+            ).strip()
 
-            return redirect(
-                url_for(
-                    "new_reservation",
-                    room_id=room.id
+            if not recurring_end_date_value:
+
+                flash(
+                    "繰り返し予約の終了日を入力してください。"
                 )
-            )
 
-        seen_schedules.add(
-            schedule_key
-        )
+                return redirect(
+                    url_for(
+                        "new_reservation",
+                        room_id=room.id
+                    )
+                )
 
-        for existing_schedule in schedules:
+            try:
+
+                recurring_end_date = date.fromisoformat(
+                    recurring_end_date_value
+                )
+
+            except ValueError:
+
+                flash(
+                    "繰り返し予約の終了日が不正です。"
+                )
+
+                return redirect(
+                    url_for(
+                        "new_reservation",
+                        room_id=room.id
+                    )
+                )
+
+            if recurring_end_date < first_date:
+
+                flash(
+                    "繰り返し予約の終了日は"
+                    "開始日以降にしてください。"
+                )
+
+                return redirect(
+                    url_for(
+                        "new_reservation",
+                        room_id=room.id
+                    )
+                )
+
+            current_date = first_date
+
+            while current_date <= recurring_end_date:
+
+                if current_date.weekday() in weekdays:
+
+                    start_dt = datetime.combine(
+                        current_date,
+                        start_time_obj,
+                        tzinfo=JST
+                    )
+
+                    end_dt = datetime.combine(
+                        current_date,
+                        end_time_obj,
+                        tzinfo=JST
+                    )
+
+                    schedules.append(
+                        {
+                            "start": start_dt,
+                            "end": end_dt,
+                            "people": people
+                        }
+                    )
+
+                    if len(schedules) > 100:
+
+                        flash(
+                            "一度に登録できる繰り返し予約は"
+                            "100件までです。"
+                        )
+
+                        return redirect(
+                            url_for(
+                                "new_reservation",
+                                room_id=room.id
+                            )
+                        )
+
+                current_date += timedelta(
+                    days=1
+                )
+
+        # -------------------------------------------------
+        # 回数を指定して繰り返す
+        # -------------------------------------------------
+
+        elif recurrence_end_type == "count":
+
+            recurring_count_value = request.form.get(
+                "recurring_count",
+                ""
+            ).strip()
+
+            try:
+
+                recurring_count = int(
+                    recurring_count_value
+                )
+
+            except ValueError:
+
+                recurring_count = 0
 
             if (
-                existing_schedule["start"].date()
-                == start_dt.date()
+                recurring_count < 1
+                or recurring_count > 100
             ):
 
-                if (
-                    existing_schedule["start"] < end_dt
-                    and
-                    existing_schedule["end"] > start_dt
-                ):
+                flash(
+                    "繰り返し回数は1～100回で"
+                    "入力してください。"
+                )
 
-                    flash(
-                        f"{date_value} の日程で"
-                        "時間帯が重複しています。"
+                return redirect(
+                    url_for(
+                        "new_reservation",
+                        room_id=room.id
+                    )
+                )
+
+            current_date = first_date
+
+            while len(schedules) < recurring_count:
+
+                if current_date.weekday() in weekdays:
+
+                    start_dt = datetime.combine(
+                        current_date,
+                        start_time_obj,
+                        tzinfo=JST
                     )
 
-                    return redirect(
-                        url_for(
-                            "new_reservation",
-                            room_id=room.id
-                        )
+                    end_dt = datetime.combine(
+                        current_date,
+                        end_time_obj,
+                        tzinfo=JST
                     )
 
-        schedules.append(
-            {
-                "start": start_dt,
-                "end": end_dt,
-                "people": people
-            }
+                    schedules.append(
+                        {
+                            "start": start_dt,
+                            "end": end_dt,
+                            "people": people
+                        }
+                    )
+
+                current_date += timedelta(
+                    days=1
+                )
+
+        else:
+
+            flash(
+                "繰り返し予約の終了条件が不正です。"
+            )
+
+            return redirect(
+                url_for(
+                    "new_reservation",
+                    room_id=room.id
+                )
+            )
+
+        if not schedules:
+
+            flash(
+                "指定した条件に該当する予約日がありません。"
+            )
+
+            return redirect(
+                url_for(
+                    "new_reservation",
+                    room_id=room.id
+                )
+            )
+
+    else:
+
+        flash(
+            "予約方法の指定が不正です。"
         )
+
+        return redirect(
+            url_for(
+                "new_reservation",
+                room_id=room.id
+            )
+        )
+
+    # =====================================================
+    # DB登録
+    # ここからは通常予約・繰り返し予約で共通
+    # =====================================================
 
     batch_id = str(
         uuid.uuid4()
@@ -1241,6 +1632,7 @@ def new_reservation():
 
     try:
 
+        # 部屋単位で予約処理をロック
         db.session.execute(
             text(
                 "SELECT "
@@ -1251,11 +1643,24 @@ def new_reservation():
             }
         )
 
+        # -------------------------------------------------
+        # 全日程を一括チェック
+        # 1件でも予約不可なら全件登録しない
+        # -------------------------------------------------
+
         for schedule in schedules:
 
             local_date = (
                 schedule["start"]
                 .strftime("%Y/%m/%d")
+            )
+
+            local_time = (
+                schedule["start"]
+                .strftime("%H:%M")
+                + "～"
+                + schedule["end"]
+                .strftime("%H:%M")
             )
 
             if room.exclusive:
@@ -1273,9 +1678,9 @@ def new_reservation():
                     db.session.rollback()
 
                     flash(
-                        f"{local_date} のこの時間帯は"
-                        f"{room.name} が既に予約されています。"
-                        "一括申請は登録されませんでした。"
+                        f"{local_date} {local_time} は"
+                        f"{room.name} に既存の予約・申請があります。"
+                        "今回の一括申請は登録されませんでした。"
                     )
 
                     return redirect(
@@ -1308,9 +1713,9 @@ def new_reservation():
                     db.session.rollback()
 
                     flash(
-                        f"{local_date} のこの時間帯は"
+                        f"{local_date} {local_time} は"
                         f"空きが {available_people}人です。"
-                        "一括申請は登録されませんでした。"
+                        "今回の一括申請は登録されませんでした。"
                     )
 
                     return redirect(
@@ -1319,6 +1724,10 @@ def new_reservation():
                             room_id=room.id
                         )
                     )
+
+        # -------------------------------------------------
+        # 全日程が申請可能ならまとめて登録
+        # -------------------------------------------------
 
         for schedule in schedules:
 
@@ -1352,6 +1761,10 @@ def new_reservation():
 
         db.session.commit()
 
+        # -------------------------------------------------
+        # 管理者へメール通知
+        # -------------------------------------------------
+
         admin_url = (
             os.environ["APP_BASE_URL"].rstrip("/")
             + "/admin"
@@ -1364,6 +1777,30 @@ def new_reservation():
                 status="active"
             ).all()
 
+            reservation_type_text = (
+                "毎週繰り返し予約"
+                if reservation_mode == "recurring"
+                else "利用申請"
+            )
+
+            schedule_lines = []
+
+            for schedule in schedules:
+
+                schedule_lines.append(
+                    (
+                        f"{schedule['start'].strftime('%Y/%m/%d')} "
+                        f"{schedule['start'].strftime('%H:%M')}"
+                        f" ～ "
+                        f"{schedule['end'].strftime('%H:%M')}"
+                        f"　{schedule['people']}人"
+                    )
+                )
+
+            schedule_text = "\n".join(
+                schedule_lines
+            )
+
             for admin in admin_users:
 
                 send_email(
@@ -1371,8 +1808,10 @@ def new_reservation():
                     "【実習室予約】新しい利用申請があります",
                     (
                         f"{current_user.name} さんから"
-                        f"{len(schedules)}件の利用申請がありました.\n\n"
+                        f"{len(schedules)}件の"
+                        f"{reservation_type_text}がありました。\n\n"
                         f"部屋：{room.name}\n"
+                        f"{schedule_text}\n\n"
                         f"利用目的：{purpose or '－'}\n"
                         f"備考：{note or '－'}\n\n"
                         "以下のURLから管理画面を開けます。\n"
@@ -1407,7 +1846,18 @@ def new_reservation():
             )
         )
 
-    if len(schedules) == 1:
+    # -----------------------------------------------------
+    # 正常終了
+    # -----------------------------------------------------
+
+    if reservation_mode == "recurring":
+
+        flash(
+            f"{len(schedules)}件の繰り返し予約を"
+            "まとめて申請しました。"
+        )
+
+    elif len(schedules) == 1:
 
         flash(
             "1件の利用申請を登録しました。"

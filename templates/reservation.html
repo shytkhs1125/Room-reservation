@@ -107,27 +107,242 @@
             value="{{ csrf_token() }}">
 
 
-        <div id="schedule-list">
+        <!-- =================================================
+             予約方法
+        ================================================== -->
 
-            <div class="schedule-row border rounded p-3 mb-3">
+        <div class="mb-4">
+
+            <label class="form-label fw-bold">
+                予約方法
+            </label>
+
+            <div class="form-check">
+
+                <input
+                    class="form-check-input"
+                    type="radio"
+                    name="reservation_mode"
+                    id="mode-normal"
+                    value="normal"
+                    checked>
+
+                <label
+                    class="form-check-label"
+                    for="mode-normal">
+
+                    通常予約
+                    （1件または複数日程をまとめて申請）
+
+                </label>
+
+            </div>
+
+            <div class="form-check mt-2">
+
+                <input
+                    class="form-check-input"
+                    type="radio"
+                    name="reservation_mode"
+                    id="mode-recurring"
+                    value="recurring">
+
+                <label
+                    class="form-check-label"
+                    for="mode-recurring">
+
+                    毎週繰り返し予約
+
+                </label>
+
+            </div>
+
+        </div>
+
+
+        <!-- =================================================
+             通常予約
+        ================================================== -->
+
+        <div id="normal-section">
+
+            <div id="schedule-list">
+
+                <div class="schedule-row border rounded p-3 mb-3">
+
+                    <div class="mb-3">
+
+                        <label class="form-label">
+                            利用日
+                        </label>
+
+                        <input
+                            type="date"
+                            name="date[]"
+                            class="form-control schedule-date"
+                            value="{{ selected_date or '' }}">
+
+                    </div>
+
+
+                    <div class="row">
+
+                        <div class="col-6">
+
+                            <label class="form-label">
+                                開始時刻
+                            </label>
+
+                            <input
+                                type="time"
+                                name="start_time[]"
+                                class="form-control schedule-start">
+
+                        </div>
+
+
+                        <div class="col-6">
+
+                            <label class="form-label">
+                                終了時刻
+                            </label>
+
+                            <input
+                                type="time"
+                                name="end_time[]"
+                                class="form-control schedule-end">
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="mt-3">
+
+                        <label class="form-label">
+                            利用人数
+                        </label>
+
+                        <input
+                            type="number"
+                            name="people[]"
+                            class="form-control schedule-people"
+                            min="1"
+                            max="{{ room.capacity }}">
+
+                    </div>
+
+
+                    <div class="availability alert alert-secondary mt-3 mb-0">
+
+                        日時を入力すると空き状況を表示します。
+
+                    </div>
+
+
+                    <button
+                        type="button"
+                        class="btn btn-outline-danger btn-sm mt-3 remove-schedule">
+
+                        この日程を削除
+
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <button
+                type="button"
+                id="add-schedule"
+                class="btn btn-outline-primary w-100 mb-4">
+
+                ＋ 日程を追加
+
+            </button>
+
+        </div>
+
+
+        <!-- =================================================
+             毎週繰り返し予約
+        ================================================== -->
+
+        <div
+            id="recurring-section"
+            class="d-none">
+
+            <div class="border rounded p-3 mb-4">
 
                 <div class="mb-3">
 
                     <label class="form-label">
-                        利用日
+                        開始日
                     </label>
 
                     <input
                         type="date"
-                        name="date[]"
-                        class="form-control schedule-date"
-                        value="{{ selected_date or '' }}"
-                        required>
+                        id="recurring-start-date"
+                        name="recurring_start_date"
+                        class="form-control"
+                        value="{{ selected_date or '' }}">
+
+                    <div class="form-text">
+                        この日以降で、選択した曜日に予約を作成します。
+                    </div>
 
                 </div>
 
 
-                <div class="row">
+                <div class="mb-3">
+
+                    <label class="form-label">
+                        曜日
+                    </label>
+
+                    <div class="row g-2">
+
+                        {% set weekday_names = [
+                            ('0', '月'),
+                            ('1', '火'),
+                            ('2', '水'),
+                            ('3', '木'),
+                            ('4', '金'),
+                            ('5', '土'),
+                            ('6', '日')
+                        ] %}
+
+                        {% for value, label in weekday_names %}
+
+                        <div class="col-auto">
+
+                            <input
+                                type="checkbox"
+                                class="btn-check recurring-weekday"
+                                name="recurring_weekdays[]"
+                                id="weekday-{{ value }}"
+                                value="{{ value }}"
+                                autocomplete="off">
+
+                            <label
+                                class="btn btn-outline-secondary"
+                                for="weekday-{{ value }}">
+
+                                {{ label }}
+
+                            </label>
+
+                        </div>
+
+                        {% endfor %}
+
+                    </div>
+
+                </div>
+
+
+                <div class="row mb-3">
 
                     <div class="col-6">
 
@@ -137,9 +352,9 @@
 
                         <input
                             type="time"
-                            name="start_time[]"
-                            class="form-control schedule-start"
-                            required>
+                            id="recurring-start-time"
+                            name="recurring_start_time"
+                            class="form-control">
 
                     </div>
 
@@ -152,16 +367,16 @@
 
                         <input
                             type="time"
-                            name="end_time[]"
-                            class="form-control schedule-end"
-                            required>
+                            id="recurring-end-time"
+                            name="recurring_end_time"
+                            class="form-control">
 
                     </div>
 
                 </div>
 
 
-                <div class="mt-3">
+                <div class="mb-3">
 
                     <label class="form-label">
                         利用人数
@@ -169,44 +384,115 @@
 
                     <input
                         type="number"
-                        name="people[]"
-                        class="form-control schedule-people"
+                        id="recurring-people"
+                        name="recurring_people"
+                        class="form-control"
                         min="1"
-                        max="{{ room.capacity }}"
-                        required>
+                        max="{{ room.capacity }}">
 
                 </div>
 
 
-                <div class="availability alert alert-secondary mt-3 mb-0">
+                <div class="mb-3">
 
-                    日時を入力すると空き状況を表示します。
+                    <label class="form-label fw-bold">
+                        繰り返しの終了条件
+                    </label>
+
+                    <div class="form-check">
+
+                        <input
+                            class="form-check-input"
+                            type="radio"
+                            name="recurrence_end_type"
+                            id="end-type-date"
+                            value="date"
+                            checked>
+
+                        <label
+                            class="form-check-label"
+                            for="end-type-date">
+
+                            終了日を指定
+
+                        </label>
+
+                    </div>
+
+                    <div
+                        id="end-date-area"
+                        class="mt-2">
+
+                        <input
+                            type="date"
+                            id="recurring-end-date"
+                            name="recurring_end_date"
+                            class="form-control">
+
+                    </div>
+
+
+                    <div class="form-check mt-3">
+
+                        <input
+                            class="form-check-input"
+                            type="radio"
+                            name="recurrence_end_type"
+                            id="end-type-count"
+                            value="count">
+
+                        <label
+                            class="form-check-label"
+                            for="end-type-count">
+
+                            回数を指定
+
+                        </label>
+
+                    </div>
+
+                    <div
+                        id="end-count-area"
+                        class="mt-2 d-none">
+
+                        <div class="input-group">
+
+                            <input
+                                type="number"
+                                id="recurring-count"
+                                name="recurring_count"
+                                class="form-control"
+                                min="1"
+                                max="100"
+                                value="10">
+
+                            <span class="input-group-text">
+                                回
+                            </span>
+
+                        </div>
+
+                    </div>
 
                 </div>
 
 
-                <button
-                    type="button"
-                    class="btn btn-outline-danger btn-sm mt-3 remove-schedule">
+                <div
+                    id="recurring-preview"
+                    class="alert alert-secondary mb-0">
 
-                    この日程を削除
+                    条件を入力すると予約予定日を表示します。
 
-                </button>
+                </div>
 
             </div>
 
         </div>
 
 
-        <button
-            type="button"
-            id="add-schedule"
-            class="btn btn-outline-primary w-100 mb-4">
-
-            ＋ 日程を追加
-
-        </button>
-
+        <!-- =================================================
+             共通項目
+        ================================================== -->
 
         <div class="mb-3">
 
@@ -263,6 +549,7 @@
 const today = new Date();
 
 const yyyy = today.getFullYear();
+
 const mm = String(
     today.getMonth() + 1
 ).padStart(2, "0");
@@ -274,6 +561,10 @@ const dd = String(
 const todayString =
     yyyy + "-" + mm + "-" + dd;
 
+
+// =========================================================
+// 部屋切り替え
+// =========================================================
 
 const roomSelect =
     document.getElementById("room-select");
@@ -318,17 +609,104 @@ if (roomSelect) {
 }
 
 
-function updateSubmitButtonText() {
+// =========================================================
+// 予約方法切り替え
+// =========================================================
 
-    const count =
-        document.querySelectorAll(
-            ".schedule-row"
-        ).length;
+const normalSection =
+    document.getElementById(
+        "normal-section"
+    );
+
+const recurringSection =
+    document.getElementById(
+        "recurring-section"
+    );
+
+const modeNormal =
+    document.getElementById(
+        "mode-normal"
+    );
+
+const modeRecurring =
+    document.getElementById(
+        "mode-recurring"
+    );
+
+
+function currentMode() {
+
+    return modeRecurring.checked
+        ? "recurring"
+        : "normal";
+}
+
+
+function updateReservationMode() {
+
+    if (currentMode() === "recurring") {
+
+        normalSection.classList.add(
+            "d-none"
+        );
+
+        recurringSection.classList.remove(
+            "d-none"
+        );
+
+        updateSubmitButtonText();
+
+        updateRecurringPreview();
+
+    } else {
+
+        recurringSection.classList.add(
+            "d-none"
+        );
+
+        normalSection.classList.remove(
+            "d-none"
+        );
+
+        updateSubmitButtonText();
+    }
+}
+
+
+modeNormal.addEventListener(
+    "change",
+    updateReservationMode
+);
+
+modeRecurring.addEventListener(
+    "change",
+    updateReservationMode
+);
+
+
+// =========================================================
+// 通常予約
+// =========================================================
+
+function updateSubmitButtonText() {
 
     const button =
         document.getElementById(
             "submit-button"
         );
+
+    if (currentMode() === "recurring") {
+
+        button.textContent =
+            "繰り返し予約をまとめて申請する";
+
+        return;
+    }
+
+    const count =
+        document.querySelectorAll(
+            ".schedule-row"
+        ).length;
 
     if (count > 1) {
 
@@ -689,9 +1067,456 @@ document
     );
 
 
+// =========================================================
+// 繰り返し予約
+// =========================================================
+
+const recurringStartDate =
+    document.getElementById(
+        "recurring-start-date"
+    );
+
+const recurringEndDate =
+    document.getElementById(
+        "recurring-end-date"
+    );
+
+const recurringStartTime =
+    document.getElementById(
+        "recurring-start-time"
+    );
+
+const recurringEndTime =
+    document.getElementById(
+        "recurring-end-time"
+    );
+
+const recurringPeople =
+    document.getElementById(
+        "recurring-people"
+    );
+
+const recurringCount =
+    document.getElementById(
+        "recurring-count"
+    );
+
+const recurringPreview =
+    document.getElementById(
+        "recurring-preview"
+    );
+
+const endTypeDate =
+    document.getElementById(
+        "end-type-date"
+    );
+
+const endTypeCount =
+    document.getElementById(
+        "end-type-count"
+    );
+
+const endDateArea =
+    document.getElementById(
+        "end-date-area"
+    );
+
+const endCountArea =
+    document.getElementById(
+        "end-count-area"
+    );
+
+
+recurringStartDate.min =
+    todayString;
+
+recurringEndDate.min =
+    todayString;
+
+
+function parseLocalDate(dateString) {
+
+    const parts =
+        dateString.split("-");
+
+    return new Date(
+        Number(parts[0]),
+        Number(parts[1]) - 1,
+        Number(parts[2])
+    );
+}
+
+
+function formatPreviewDate(dateObj) {
+
+    const weekdayLabels =
+        [
+            "日",
+            "月",
+            "火",
+            "水",
+            "木",
+            "金",
+            "土"
+        ];
+
+    const y =
+        dateObj.getFullYear();
+
+    const m =
+        String(
+            dateObj.getMonth() + 1
+        ).padStart(2, "0");
+
+    const d =
+        String(
+            dateObj.getDate()
+        ).padStart(2, "0");
+
+    return (
+        y + "/" + m + "/" + d
+        + "（"
+        + weekdayLabels[
+            dateObj.getDay()
+        ]
+        + "）"
+    );
+}
+
+
+function selectedWeekdays() {
+
+    return Array.from(
+        document.querySelectorAll(
+            ".recurring-weekday:checked"
+        )
+    ).map(function(input) {
+
+        return parseInt(
+            input.value
+        );
+    });
+}
+
+
+function jsWeekdayToPythonWeekday(
+    jsWeekday
+) {
+
+    // JavaScript: 日=0, 月=1 ...
+    // Python:     月=0, 火=1 ...
+    return (
+        jsWeekday + 6
+    ) % 7;
+}
+
+
+function updateEndType() {
+
+    if (endTypeCount.checked) {
+
+        endDateArea.classList.add(
+            "d-none"
+        );
+
+        endCountArea.classList.remove(
+            "d-none"
+        );
+
+    } else {
+
+        endCountArea.classList.add(
+            "d-none"
+        );
+
+        endDateArea.classList.remove(
+            "d-none"
+        );
+    }
+
+    updateRecurringPreview();
+}
+
+
+endTypeDate.addEventListener(
+    "change",
+    updateEndType
+);
+
+endTypeCount.addEventListener(
+    "change",
+    updateEndType
+);
+
+
+function updateRecurringPreview() {
+
+    if (currentMode() !== "recurring") {
+        return;
+    }
+
+    const startDateValue =
+        recurringStartDate.value;
+
+    const startTimeValue =
+        recurringStartTime.value;
+
+    const endTimeValue =
+        recurringEndTime.value;
+
+    const weekdays =
+        selectedWeekdays();
+
+    if (
+        !startDateValue
+        || !startTimeValue
+        || !endTimeValue
+        || weekdays.length === 0
+    ) {
+
+        recurringPreview.className =
+            "alert alert-secondary mb-0";
+
+        recurringPreview.textContent =
+            "開始日、曜日、時間を入力すると"
+            + "予約予定日を表示します。";
+
+        return;
+    }
+
+
+    if (
+        endTimeValue <= startTimeValue
+    ) {
+
+        recurringPreview.className =
+            "alert alert-danger mb-0";
+
+        recurringPreview.textContent =
+            "終了時刻は開始時刻より後にしてください。";
+
+        return;
+    }
+
+
+    const generatedDates = [];
+
+    let currentDate =
+        parseLocalDate(
+            startDateValue
+        );
+
+
+    if (endTypeDate.checked) {
+
+        if (!recurringEndDate.value) {
+
+            recurringPreview.className =
+                "alert alert-secondary mb-0";
+
+            recurringPreview.textContent =
+                "終了日を入力してください。";
+
+            return;
+        }
+
+        const endDate =
+            parseLocalDate(
+                recurringEndDate.value
+            );
+
+        if (endDate < currentDate) {
+
+            recurringPreview.className =
+                "alert alert-danger mb-0";
+
+            recurringPreview.textContent =
+                "終了日は開始日以降にしてください。";
+
+            return;
+        }
+
+        while (
+            currentDate <= endDate
+            && generatedDates.length <= 100
+        ) {
+
+            const pythonWeekday =
+                jsWeekdayToPythonWeekday(
+                    currentDate.getDay()
+                );
+
+            if (
+                weekdays.includes(
+                    pythonWeekday
+                )
+            ) {
+
+                generatedDates.push(
+                    new Date(currentDate)
+                );
+            }
+
+            currentDate.setDate(
+                currentDate.getDate() + 1
+            );
+        }
+
+    } else {
+
+        const count =
+            parseInt(
+                recurringCount.value
+            );
+
+        if (
+            !count
+            || count < 1
+            || count > 100
+        ) {
+
+            recurringPreview.className =
+                "alert alert-danger mb-0";
+
+            recurringPreview.textContent =
+                "回数は1～100回で入力してください。";
+
+            return;
+        }
+
+        while (
+            generatedDates.length < count
+        ) {
+
+            const pythonWeekday =
+                jsWeekdayToPythonWeekday(
+                    currentDate.getDay()
+                );
+
+            if (
+                weekdays.includes(
+                    pythonWeekday
+                )
+            ) {
+
+                generatedDates.push(
+                    new Date(currentDate)
+                );
+            }
+
+            currentDate.setDate(
+                currentDate.getDate() + 1
+            );
+        }
+    }
+
+
+    if (generatedDates.length === 0) {
+
+        recurringPreview.className =
+            "alert alert-warning mb-0";
+
+        recurringPreview.textContent =
+            "指定条件に該当する予約日がありません。";
+
+        return;
+    }
+
+
+    if (generatedDates.length > 100) {
+
+        recurringPreview.className =
+            "alert alert-danger mb-0";
+
+        recurringPreview.textContent =
+            "一度に申請できる繰り返し予約は"
+            + "100件までです。";
+
+        return;
+    }
+
+
+    let html =
+        "<strong>"
+        + generatedDates.length
+        + "件を申請します。</strong>"
+        + "<br><small>"
+        + "空き状況は申請時に全件一括で確認します。"
+        + "</small>"
+        + "<ul class=\"mb-0 mt-2\">";
+
+
+    generatedDates.forEach(
+        function(dateObj) {
+
+            html +=
+                "<li>"
+                + formatPreviewDate(
+                    dateObj
+                )
+                + " "
+                + startTimeValue
+                + " ～ "
+                + endTimeValue
+                + "</li>";
+        }
+    );
+
+
+    html += "</ul>";
+
+    recurringPreview.className =
+        "alert alert-info mb-0";
+
+    recurringPreview.innerHTML =
+        html;
+}
+
+
+[
+    recurringStartDate,
+    recurringEndDate,
+    recurringStartTime,
+    recurringEndTime,
+    recurringPeople,
+    recurringCount
+].forEach(function(input) {
+
+    input.addEventListener(
+        "change",
+        updateRecurringPreview
+    );
+
+    input.addEventListener(
+        "input",
+        updateRecurringPreview
+    );
+});
+
+
+document.querySelectorAll(
+    ".recurring-weekday"
+).forEach(function(input) {
+
+    input.addEventListener(
+        "change",
+        updateRecurringPreview
+    );
+});
+
+
+// =========================================================
+// 初期化
+// =========================================================
+
 updateSubmitButtonText();
+
+updateEndType();
+
+updateReservationMode();
 
 </script>
 
 </body>
+
 </html>
